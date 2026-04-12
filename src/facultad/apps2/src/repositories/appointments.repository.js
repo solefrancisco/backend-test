@@ -83,6 +83,26 @@ class MySqlAppointmentsRepository {
         values.push(queryFilters.until);
       }
 
+      if (queryFilters.patient_id) {
+        conditions.push('patient_id = ?');
+        values.push(queryFilters.patient_id);
+      }
+
+      if (queryFilters.medic_id) {
+        conditions.push('medic_id = ?');
+        values.push(queryFilters.medic_id);
+      }
+
+      if (queryFilters.medical_center_id) {
+        conditions.push('center_id = ?');
+        values.push(queryFilters.medical_center_id);
+      }
+
+      if(queryFilters.speciality_id) {
+        conditions.push('speciality_id = ?');
+        values.push(queryFilters.speciality_id);
+      }
+      
       if (conditions.length > 0) {
         query += ` WHERE ${conditions.join(' AND ')}`;
       }
@@ -101,6 +121,60 @@ class MySqlAppointmentsRepository {
       );
 
       return { success: true, data: rows };
+    } catch (error) {
+      return { success: false, sqlState: error.sqlState, errorMessage: error.message };
+    }
+  }
+
+  async count(queryFilters) {
+    try{
+      let query = `
+          SELECT COUNT(1) AS count 
+          FROM appointments
+        `;
+
+      let conditions = [];
+      let values = [];
+
+      if (queryFilters.since) {
+        conditions.push('starts_at >= ?');
+        values.push(queryFilters.since);
+      }
+
+      if (queryFilters.until) {
+        conditions.push('ends_at <= ?');
+        values.push(queryFilters.until);
+      }
+
+      if (queryFilters.patient_id) {
+        conditions.push('patient_id = ?');
+        values.push(queryFilters.patient_id);
+      }
+
+      if (queryFilters.medic_id) {
+        conditions.push('medic_id = ?');
+        values.push(queryFilters.medic_id);
+      }
+
+      if (queryFilters.medical_center_id) {
+        conditions.push('center_id = ?');
+        values.push(queryFilters.medical_center_id);
+      }
+
+      if(queryFilters.speciality_id) {
+        conditions.push('speciality_id = ?');
+        values.push(queryFilters.speciality_id);
+      }
+
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+
+      const [rows] = await this.pool.query(
+        query,
+        values
+      );
+      return { success: true, data: rows[0].count };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
     }

@@ -10,6 +10,38 @@ const getAppointmentsSchema = z.object({
     .string({ required_error: 'until is required', invalid_type_error: 'until must be a string' })
     .regex(dateTimeRegex, 'until must be YYYY-MM-DD HH:mm:ss'),
 
+  patient_id: z
+    .coerce.number({ 
+      invalid_type_error: 'patient_id must be a number' 
+    })
+    .int('patient_id must be an integer')
+    .positive('patient_id must be greater than 0')
+    .optional(),
+
+  medic_id: z
+    .coerce.number({ 
+      invalid_type_error: 'medic_id must be a number' 
+    })
+    .int('medic_id must be an integer')
+    .positive('medic_id must be greater than 0')
+    .optional(),
+
+  medical_center_id: z
+    .coerce.number({ 
+      invalid_type_error: 'medical_center_id must be a number' 
+    })
+    .int('medical_center_id must be an integer')
+    .positive('medical_center_id must be greater than 0')
+    .optional(),
+  
+  speciality_id: z
+    .coerce.number({ 
+      invalid_type_error: 'speciality_id must be a number' 
+    })
+    .int('speciality_id must be an integer')
+    .positive('speciality_id must be greater than 0')
+    .optional(),
+
   page: z
     .coerce.number({
       invalid_type_error: 'page must be a number'
@@ -17,7 +49,7 @@ const getAppointmentsSchema = z.object({
     .int('page must be an integer')
     .positive('page must be a positive integer')
     .default(1)
-}).superRefine((data, ctx) => {
+}).strict().superRefine((data, ctx) => {
   const since = new Date(data.since.replace(' ', 'T')); 
   const until = new Date(data.until.replace(' ', 'T'));
 
@@ -29,7 +61,7 @@ const getAppointmentsSchema = z.object({
       path: ['since'],
     });
   }
-
+  
   // regla 2: máximo 1 mes (31 días)  
   const maxDate = new Date(since);
   maxDate.setMonth(maxDate.getMonth() + 1);
@@ -41,7 +73,15 @@ const getAppointmentsSchema = z.object({
       path: ['until'],
     });
   }
-}
-);
+
+  // regla 3: el médico no puede consultar sus turnos como paciente estando como médico y viceversa
+  if (data.medic_id && data.patient_id && data.medic_id === data.patient_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'medic_id and patient_id cannot be the same',
+      path: ['patient_id'],
+    });
+  }
+});
 
 module.exports = { getAppointmentsSchema };

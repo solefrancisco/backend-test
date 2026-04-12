@@ -9,11 +9,6 @@ class AppointmentsService {
     }
 
     async createAppointment(data) {
-        const now = new Date();
-        if (new Date(data.starts_at) < now) {
-            throw new BadRequestError('Cannot create appointment in the past');
-        }
-
         const result = await this.appointmentsRepository.create(data);
         if (!result.success) {
             if (result.sqlState === '45000') {
@@ -27,13 +22,34 @@ class AppointmentsService {
     }
 
     async getAppointments(query) {
+        const quantity = await this.appointmentsRepository.count(query);
+        if (!quantity.success) {
+            throw new InternalServerError('Failed to paginate appointments: ' + quantity.errorMessage);
+        }
+
+        const totalItems = quantity.data;
+        if (totalItems === 0) {
+            throw new NotFoundError('No appointments found for the given criteria');
+        }
+
+        const totalPages = Math.ceil(totalItems / paginationConfig.defaultPageSize);
+        if (query.page > totalPages) {
+            throw new BadRequestError(`Page ${query.page} does not exist. Total pages: ${totalPages}`);
+        }
+
         const result = await this.appointmentsRepository.findAll(paginationConfig.defaultPageSize, query);
-        
         if (!result.success) {
             throw new InternalServerError('Failed to retrieve appointments: ' + result.errorMessage);
         }
         
-        return result.data;
+        return {
+            appointments: result.data,
+            pagination: {
+                totalItems: totalItems,
+                totalPages: totalPages,
+                itemsPerPage: paginationConfig.defaultPageSize
+            }
+        };
     }
 
     async getAppointmentById(id) {
