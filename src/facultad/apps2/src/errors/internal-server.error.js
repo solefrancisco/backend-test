@@ -1,4 +1,4 @@
-const { AppError } = require('./app-error');
+const { AppError } = require('./app.error');
 
 class InternalServerError extends AppError {
   constructor(message = 'Internal server error') {
