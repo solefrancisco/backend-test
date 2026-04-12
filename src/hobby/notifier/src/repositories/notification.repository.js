@@ -210,43 +210,6 @@ class MySqlNotificationRepository {
     }
   }
 
-  async findPending(limit = 100, offset = 0) {
-    try {
-      const [rows] = await this.pool.query(
-        `
-          SELECT
-            id,
-            notify_by,
-            notification_type,
-            status,
-            recipient,
-            subject,
-            payload,
-            api_key_id,
-            retries,
-            DATE_FORMAT(sent_at, '%Y-%m-%d %H:%i:%s') AS sent_at,
-            DATE_FORMAT(failed_at, '%Y-%m-%d %H:%i:%s') AS failed_at,
-            DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
-            DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
-          FROM notifications
-          WHERE status = 'PENDING'
-          ORDER BY created_at ASC, id ASC
-          LIMIT ?
-          OFFSET ?
-        `,
-        [limit, offset]
-      );
-
-      return { success: true, data: rows };
-    } catch (error) {
-      return {
-        success: false,
-        sqlState: error.sqlState,
-        errorMessage: error.message,
-      };
-    }
-  }
-
   async markAsProcessing(notificationId) {
     try {
       const [result] = await this.pool.query(
@@ -282,87 +245,6 @@ class MySqlNotificationRepository {
           SET
             status = 'SENT',
             sent_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-            AND status IN ('PENDING', 'PROCESSING')
-        `,
-        [notificationId]
-      );
-
-      return {
-        success: true,
-        data: { affectedRows: result.affectedRows > 0 },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        sqlState: error.sqlState,
-        errorMessage: error.message,
-      };
-    }
-  }
-
-  async markAsFailed(notificationId) {
-    try {
-      const [result] = await this.pool.query(
-        `
-          UPDATE notifications
-          SET
-            status = 'FAILED',
-            failed_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-            AND status IN ('PENDING', 'PROCESSING')
-        `,
-        [notificationId]
-      );
-
-      return {
-        success: true,
-        data: { affectedRows: result.affectedRows > 0 },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        sqlState: error.sqlState,
-        errorMessage: error.message,
-      };
-    }
-  }
-
-  async incrementRetries(notificationId) {
-    try {
-      const [result] = await this.pool.query(
-        `
-          UPDATE notifications
-          SET
-            retries = retries + 1,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `,
-        [notificationId]
-      );
-
-      return {
-        success: true,
-        data: { affectedRows: result.affectedRows > 0 },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        sqlState: error.sqlState,
-        errorMessage: error.message,
-      };
-    }
-  }
-
-  async cancel(notificationId) {
-    try {
-      const [result] = await this.pool.query(
-        `
-          UPDATE notifications
-          SET
-            status = 'CANCELLED',
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
             AND status IN ('PENDING', 'PROCESSING')

@@ -21,7 +21,7 @@ function buildMySqlRepository() {
 
 async function bootstrapNotificationConsumers() {
     await startEmailConsumer();
-    // await startWebhookConsumer();
+    await startWebhookConsumer();
 }
 
 module.exports = { buildNotificationController, bootstrapNotificationConsumers };

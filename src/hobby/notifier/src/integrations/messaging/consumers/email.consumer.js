@@ -2,7 +2,6 @@ const { rabbitConfig } = require('@notify/configs/rabbitmq.config');
 const { connectRabbit } = require('@notify/integrations/messaging/rabbit.client');
 const { createEmailTransporter } = require('@notify/integrations/email/email.client');
 const { renderEmailTemplate } = require('@notify/templates/email');
-const { logger } = require('@notify/utils/logger.util');
 
 async function processEmailNotification(data, transporter, emailAccount) {
     const template = renderEmailTemplate(data);
@@ -61,12 +60,6 @@ async function startEmailConsumer() {
             channel.ack(message);
         } catch (error) {
             const nextRetryCount = retryCount + 1;
-            console.error('Failed to process email notification', {
-                queue: rabbitConfig.queues.email,
-                retryCount,
-                nextRetryCount,
-                error: error.message,
-            });
 
             try {
                 if (nextRetryCount <= rabbitConfig.maxRetries) {
