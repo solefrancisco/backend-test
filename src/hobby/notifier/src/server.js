@@ -1,6 +1,6 @@
 require('module-alias/register');
 const { createApp } = require('../app');
-const { buildDependencies } = require('@notify/bootstrap');
+const { buildDependencies, bootstrapInfrastructure } = require('@notify/bootstrap');
 const { env } = require('@notify/configs/env.config');
 
 async function startServer() {
@@ -14,8 +14,10 @@ async function startServer() {
         process.exit(0);
     }
 
-    const dependencies = await buildDependencies();
+    const dependencies = buildDependencies();
     const app = createApp(dependencies);
+
+    await bootstrapInfrastructure();
     const port = env.port || 3000;
 
     app.listen(port, () => {

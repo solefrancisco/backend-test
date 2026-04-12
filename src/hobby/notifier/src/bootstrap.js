@@ -1,16 +1,22 @@
 const { buildNotificationController, bootstrapNotificationConsumers } = require('@notify/bootstrap/notification.bootstrap');
 const { env } = require('@notify/configs/env.config');
 
-async function buildDependencies() {
+function buildDependencies() {
     const dependencies = {};
     
     if (env.notifierEnabled) {
         dependencies.notificationController = buildNotificationController();
-        await bootstrapNotificationConsumers();
+        bootstrapInfrastructure();
     }
     
     return dependencies;
 }
 
+async function bootstrapInfrastructure() {
+    if (env.notifierEnabled) {
+        await bootstrapNotificationConsumers();
+    }
+}
 
-module.exports = { buildDependencies, bootstrapNotificationConsumers };
+
+module.exports = { buildDependencies, bootstrapInfrastructure };
