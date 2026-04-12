@@ -1,7 +1,7 @@
 {
-  "name": "backend",
+  "name": "notify-service",
   "version": "1.0.0",
-  "description": "Centralized backend for multiple applications",
+  "description": "Notification microservice",
   "private": true,
   "type": "commonjs",
   "main": "src/server.js",
@@ -11,12 +11,8 @@
     "test": "node --test -r module-alias/register"
   },
   "_moduleAliases": {
-    "@apps2App": "src/facultad/apps2/",
-    "@apps2": "src/facultad/apps2/src",
-    "@apps2Test": "src/facultad/apps2/test",
-    "@notifyApp": "src/hobby/notifier/",
-    "@notify": "src/hobby/notifier/src",
-    "@notifyTest": "src/hobby/notifier/test"
+    "@notify": "src",
+    "@notifyTest": "tests"
   },
   "engines": {
     "node": ">=22"

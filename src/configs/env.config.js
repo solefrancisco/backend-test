@@ -34,5 +34,6 @@ function getBoolean(name) {
 module.exports = {   
     port: Number(getRequired('PORT')),
     apps2Enabled: getBoolean('APPS2_ENABLED'),
+    notifierEnabled: getBoolean('NOTIFIER_ENABLED'),
     portfolioEnabled: getBoolean('PORTFOLIO_ENABLED') 
 };
