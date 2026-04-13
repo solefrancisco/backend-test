@@ -9,7 +9,7 @@ async function startServer() {
         process.exit(0);
     }
 
-    const dependencies = await buildDependencies();
+    const dependencies = buildDependencies();
     const app = createApp(dependencies);
     const port = env.port || 3000;
 
@@ -22,8 +22,3 @@ startServer().catch((error) => {
     console.error('Failed to start server', error);
     process.exit(1);
 });
-
-if (!env.dbEnabled) {
-    console.warn('Database is disabled. Finishing server startup.');
-    process.exit(0);
-}
