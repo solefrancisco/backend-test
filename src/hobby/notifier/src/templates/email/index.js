@@ -6,7 +6,7 @@ const { renderAppointmentRescheduledTemplate } = require('./appointment-reschedu
 const { renderAppointmentReminderTemplate } = require('./appointment-reminder.template');
 
 function renderEmailTemplate(data) {
-  const type = data.notificationType;
+  const type = data.notification_type;
 
   if (type === 'appointment_pending_confirmation') {
     return renderAppointmentPendingConfirmationTemplate(data);

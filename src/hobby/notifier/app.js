@@ -10,7 +10,6 @@ function createApp(dependencies) {
 
     app.use(cors());
     app.use(express.json());
-    app.use(httpLogger);
 
     bootstrapAppControllers(app, dependencies);
 
@@ -29,7 +28,7 @@ function createApp(dependencies) {
 function bootstrapAppControllers(app, dependencies) {
     if (dependencies.notificationController) {
         app.use(
-            '/api/v1/notify', 
+            '/api/v1/notifications', 
             NotificationRouter(dependencies.notificationController)
         );
     }

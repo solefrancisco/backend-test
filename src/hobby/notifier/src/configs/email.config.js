@@ -9,7 +9,7 @@ module.exports = {
     smtpPass: env.smtpPass,
     emails: {
         appointment_pending_confirmation: {
-            from: `Confirmaciones de turno <pendiente@${env.smtpBaseDomain}>`
+            from: `Confirmacion de turno pendiente <pendiente@${env.smtpBaseDomain}>`
         },
         appointment_confirmed: {
             from: `Turno confirmado <confirmaciones@${env.smtpBaseDomain}>`

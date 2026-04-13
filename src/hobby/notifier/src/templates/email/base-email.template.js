@@ -29,10 +29,10 @@ function buildAppointmentEmailLayout({
   badgeBackground,
   badgeColor,
   intro,
-  patientName,
-  medicName,
+  patient_name,
+  medic_name,
   specialty,
-  startsAt,
+  starts_at,
   location,
   ctaText,
   footerNote,
@@ -82,7 +82,7 @@ function buildAppointmentEmailLayout({
             <tr>
               <td style="padding: 8px 32px 0 32px;">
                 <p style="margin: 0; font-size: 16px; line-height: 26px; color: #4F655C;">
-                  Hola ${patientName || 'paciente'}, ${intro}
+                  Hola ${patient_name || 'paciente'}, ${intro}
                 </p>
               </td>
             </tr>
@@ -93,14 +93,14 @@ function buildAppointmentEmailLayout({
                   <tr>
                     <td style="padding: 24px;">
                       <p style="margin: 0 0 8px 0; font-size: 26px; line-height: 34px; font-weight: 700; color: #1C2B25;">
-                        ${medicName || '-'}
+                        ${medic_name || '-'}
                       </p>
                       <p style="margin: 0 0 18px 0; font-size: 20px; line-height: 28px; color: #667A72;">
                         ${specialty || '-'}
                       </p>
 
                       <p style="margin: 0 0 10px 0; font-size: 16px; line-height: 24px; color: #4F655C;">
-                        <strong style="color: #1C2B25;">Fecha y hora:</strong> ${formatDateTime(startsAt)}
+                        <strong style="color: #1C2B25;">Fecha y hora:</strong> ${formatDateTime(starts_at)}
                       </p>
 
                       <p style="margin: 0; font-size: 16px; line-height: 24px; color: #4F655C;">
@@ -146,10 +146,10 @@ function buildAppointmentEmailLayout({
 function buildAppointmentEmailText({
   title,
   intro,
-  patientName,
-  medicName,
+  patient_name,
+  medic_name,
   specialty,
-  startsAt,
+  starts_at,
   location,
   footerNote,
   hasApiKey,
@@ -157,11 +157,11 @@ function buildAppointmentEmailText({
   return [
     title,
     '',
-    `Hola ${patientName || 'paciente'}, ${intro}`,
+    `Hola ${patient_name || 'paciente'}, ${intro}`,
     '',
-    `Profesional: ${medicName || '-'}`,
+    `Profesional: ${medic_name || '-'}`,
     `Especialidad: ${specialty || '-'}`,
-    `Fecha y hora: ${formatDateTime(startsAt)}`,
+    `Fecha y hora: ${formatDateTime(starts_at)}`,
     `Ubicación: ${location || '-'}`,
     '',
     footerNote,

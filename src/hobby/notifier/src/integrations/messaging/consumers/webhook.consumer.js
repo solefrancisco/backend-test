@@ -1,12 +1,9 @@
 const { rabbitConfig } = require('@notify/configs/rabbitmq.config');
 const { connectRabbit } = require('@notify/integrations/messaging/rabbit.client');
+const { logger } = require('@notify/utils/logger.util');
 
 async function processWebhookNotification(data) {
-    if (!data.request?.url) {
-        throw new Error('request.url is required');
-    }
-
-    const method = (data.request.method || 'POST').toUpperCase();
+    const method = data.request.method;
     const headers = { ...(data.request.headers || {}) };
 
     const requestOptions = {
@@ -29,6 +26,7 @@ async function processWebhookNotification(data) {
         }
     }
 
+    logger.info(`Sending webhook notification: ${JSON.stringify(data)}`);
     const response = await fetch(data.request.url, requestOptions);
 
     if (!response.ok) {

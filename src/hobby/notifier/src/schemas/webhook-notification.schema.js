@@ -1,7 +1,7 @@
 const { z } = require('zod');
 
 const webhookNotificationSchema = z.object({
-  notifyBy: z.literal('webhook'),
+  notify_by: z.literal('webhook'),
   request: z.object({
     url: z
       .string({
@@ -14,6 +14,7 @@ const webhookNotificationSchema = z.object({
       .enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'], {
         invalid_type_error: 'request.method is invalid',
       })
+      .default('POST')
       .optional(),
 
     headers: z

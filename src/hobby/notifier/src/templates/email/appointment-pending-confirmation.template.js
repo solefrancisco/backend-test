@@ -8,7 +8,7 @@ const {
 function renderAppointmentPendingConfirmationTemplate(data) {
   const subject = 'Confirmá o cancelá tu turno';
   const environmentUrl = env.apps2_environmentUrl;
-  const baseUrl = `${environmentUrl}/appointments/${data.appointmentId}`;
+  const baseUrl = `${environmentUrl}/appointments/${data.appointment_id}`;
   const confirmUrl = `${baseUrl}/confirm`;
   const cancelUrl = `${baseUrl}/cancel`;
 
@@ -63,10 +63,10 @@ function renderAppointmentPendingConfirmationTemplate(data) {
       badgeBackground: '#FFF4E5',
       badgeColor: '#C86A00',
       intro: 'necesitamos que confirmes o canceles tu turno para reservar correctamente el horario.',
-      patientName: data.patientName,
-      medicName: data.medicName,
+      patient_name: data.patient_name,
+      medic_name: data.medic_name,
       specialty: data.specialty,
-      startsAt: data.startsAt,
+      starts_at: data.starts_at,
       location: data.location,
       ctaText: `Elegí una opción desde los botones de abajo:${actionsHtml}`,
       footerNote: 'Si no realizás ninguna acción, el turno podría quedar sin confirmar.',
@@ -78,10 +78,10 @@ function renderAppointmentPendingConfirmationTemplate(data) {
     text: buildAppointmentEmailText({
       title: 'Confirmación de turno',
       intro: 'necesitamos que confirmes o canceles tu turno para reservar correctamente el horario.',
-      patientName: data.patientName,
-      medicName: data.medicName,
+      patient_name: data.patient_name,
+      medic_name: data.medic_name,
       specialty: data.specialty,
-      startsAt: data.startsAt,
+      starts_at: data.starts_at,
       location: data.location,
       footerNote:
         `Confirmar: ${confirmUrl}\n` +

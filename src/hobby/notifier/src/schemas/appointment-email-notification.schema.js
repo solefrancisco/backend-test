@@ -11,15 +11,15 @@ const appointmentsNotificationTypes = [
 ];
 
 const appointmentNotificationTypeEnum = z.enum(appointmentsNotificationTypes, {
-  required_error: 'notificationType is required',
-  invalid_type_error: 'notificationType is invalid',
+  required_error: 'notification_type is required',
+  invalid_type_error: 'notification_type is invalid',
 });
 
 const appointmentEmailNotificationSchema = z
   .object({
-    notifyBy: z.literal('email'),
+    notify_by: z.literal('email'),
 
-    notificationType: appointmentNotificationTypeEnum,
+    notification_type: appointmentNotificationTypeEnum,
 
     to: z
       .string({
@@ -34,26 +34,26 @@ const appointmentEmailNotificationSchema = z
         return !domain.includes('.edu');
       }, 'educational .edu domain is not allowed'),
 
-    appointmentId: z
+    appointment_id: z
       .number({
-        required_error: 'appointmentId is required',
-        invalid_type_error: 'appointmentId must be a number',
+        required_error: 'appointment_id is required',
+        invalid_type_error: 'appointment_id must be a number',
       })
-      .int('appointmentId must be an integer')
-      .positive('appointmentId must be greater than 0'),
+      .int('appointment_id must be an integer')
+      .positive('appointment_id must be greater than 0'),
 
-    patientName: z
+    patient_name: z
       .string({
-        required_error: 'patientName is required',
-        invalid_type_error: 'patientName must be a string',
+        required_error: 'patient_name is required',
+        invalid_type_error: 'patient_name must be a string',
       })
       .trim()
-      .min(1, 'patientName is required'),
+      .min(1, 'patient_name is required'),
 
-    medicName: z
-      .string({ invalid_type_error: 'medicName must be a string' })
+    medic_name: z
+      .string({ invalid_type_error: 'medic_name must be a string' })
       .trim()
-      .min(1, 'medicName cannot be empty')
+      .min(1, 'medic_name cannot be empty')
       .optional(),
 
     speciality: z
@@ -62,12 +62,12 @@ const appointmentEmailNotificationSchema = z
       .min(1, 'speciality cannot be empty')
       .optional(),
 
-    startsAt: z
+    starts_at: z
       .string({
-        required_error: 'startsAt is required',
-        invalid_type_error: 'startsAt must be a string',
+        required_error: 'starts_at is required',
+        invalid_type_error: 'starts_at must be a string',
       })
-      .regex(dateTimeRegex, 'startsAt must be YYYY-MM-DD HH:mm:ss'),
+      .regex(dateTimeRegex, 'starts_at must be YYYY-MM-DD HH:mm:ss'),
 
     location: z
       .string({ invalid_type_error: 'location must be a string' })

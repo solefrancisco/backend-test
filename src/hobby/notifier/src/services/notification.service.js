@@ -6,7 +6,7 @@ class NotificationService {
     }
 
     async queueNotification(data) {
-        const queue = data.notifyBy === 'email' ? 'notifications.email' : 'notifications.webhook';
+        const queue = data.notify_by === 'email' ? 'notifications.email' : 'notifications.webhook';
         
         await publishToQueue(queue, data);
 
