@@ -2,7 +2,6 @@ const mysql = require('mysql2/promise');
 const { env } = require('@notify/configs/env.config');
 
 const dbPool = mysql.createPool({
-  enabled: env.dbEnabled,
   host: env.dbHost,
   port: env.dbPort,
   user: env.dbUser,

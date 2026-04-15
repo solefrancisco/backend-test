@@ -65,12 +65,12 @@ function renderAppointmentPendingConfirmationTemplate(data) {
       intro: 'necesitamos que confirmes o canceles tu turno para reservar correctamente el horario.',
       patient_name: data.patient_name,
       medic_name: data.medic_name,
-      specialty: data.specialty,
+      speciality: data.speciality,
       starts_at: data.starts_at,
       location: data.location,
       ctaText: `Elegí una opción desde los botones de abajo:${actionsHtml}`,
       footerNote: 'Si no realizás ninguna acción, el turno podría quedar sin confirmar.',
-      hasApiKey: data.isInternalRequest === true,
+      notification_sent_by: data.notification_sent_by,
       headerBackground: 'linear-gradient(135deg, #FFF7ED 0%, #FFE2B8 100%)',
       headerEyebrowColor: '#9A6700',
       headerTitleColor: '#7A4B00',
@@ -80,14 +80,14 @@ function renderAppointmentPendingConfirmationTemplate(data) {
       intro: 'necesitamos que confirmes o canceles tu turno para reservar correctamente el horario.',
       patient_name: data.patient_name,
       medic_name: data.medic_name,
-      specialty: data.specialty,
+      speciality: data.speciality,
       starts_at: data.starts_at,
       location: data.location,
       footerNote:
         `Confirmar: ${confirmUrl}\n` +
         `Cancelar: ${cancelUrl}\n\n` +
         'Si no realizás ninguna acción, el turno podría quedar sin confirmar.',
-      hasApiKey: data.isInternalRequest === true,
+      notification_sent_by: data.notification_sent_by,
     }),
   };
 }

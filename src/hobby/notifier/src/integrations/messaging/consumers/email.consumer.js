@@ -2,12 +2,11 @@ const { rabbitConfig } = require('@notify/configs/rabbitmq.config');
 const { connectRabbit } = require('@notify/integrations/messaging/rabbit.client');
 const { createEmailTransporter } = require('@notify/integrations/email/email.client');
 const { renderEmailTemplate } = require('@notify/templates/email');
-const { logger } = require('@notify/utils/logger.util');
 
 async function processEmailNotification(data, transporter, emailAccount) {
     const template = renderEmailTemplate(data);
 
-    logger.info(`Sending email notification: ${JSON.stringify(data)}`);
+    console.log(`Sending email notification: ${JSON.stringify(data)}`);
     await transporter.sendMail({
         from: emailAccount.from,
         to: data.to,

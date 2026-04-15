@@ -65,6 +65,9 @@ module.exports = {
     smtpSecure: getBoolean('NOTIFIER_SMTP_SECURE'),
     smtpBaseDomain: getRequired('NOTIFIER_SMTP_BASE_DOMAIN'),
     smtpUser: getRequired('NOTIFIER_SMTP_USER'),
-    smtpPass: getRequired('NOTIFIER_SMTP_PASS')
+    smtpPass: getRequired('NOTIFIER_SMTP_PASS'),
+
+    // HMAC
+    apiKeyHmacSecret: getRequired('NOTIFIER_API_KEY_HMAC_SECRET')
   }
 };

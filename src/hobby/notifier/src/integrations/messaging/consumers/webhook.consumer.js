@@ -1,21 +1,29 @@
 const { rabbitConfig } = require('@notify/configs/rabbitmq.config');
 const { connectRabbit } = require('@notify/integrations/messaging/rabbit.client');
-const { logger } = require('@notify/utils/logger.util');
 
 async function processWebhookNotification(data) {
     const method = data.request.method;
     const headers = { ...(data.request.headers || {}) };
 
     const requestOptions = {
-        method,
+        method: 'POST',
         headers,
     };
 
     if (data.request.body !== undefined && !['GET', 'HEAD'].includes(method)) {
+        let bodyToSend = data.request.body;
+
+        if (typeof bodyToSend !== 'string') {
+            bodyToSend = {
+                ...bodyToSend,
+                disclaimer: `Notificación enviada por ${data.notification_sent_by} a través de Notifier`,
+            };
+        }
+
         requestOptions.body =
-            typeof data.request.body === 'string'
-                ? data.request.body
-                : JSON.stringify(data.request.body);
+            typeof bodyToSend === 'string'
+                ? bodyToSend
+                : JSON.stringify(bodyToSend);
 
         const hasContentType =
             headers['Content-Type'] != null ||
@@ -26,15 +34,23 @@ async function processWebhookNotification(data) {
         }
     }
 
-    logger.info(`Sending webhook notification: ${JSON.stringify(data)}`);
-    const response = await fetch(data.request.url, requestOptions);
+    try{
+        console.log(`Sending webhook notification: ${JSON.stringify(requestOptions)}`);
+        
+        const response = await fetch(data.request.url, requestOptions);
+        if (!response.ok) {
+            console.error(`Webhook request failed with status ${response.status} for URL: ${data.request.url}`);
+            const responseText = await response.text().catch(() => '');
 
-    if (!response.ok) {
-        const responseText = await response.text().catch(() => '');
-
-        throw new Error(
-            `Webhook request failed with status ${response.status}${responseText ? `: ${responseText}` : ''}`
-        );
+            throw new Error(
+                `Webhook request failed with status ${response.status}${responseText ? `: ${responseText}` : ''}`
+            );
+        } else {
+            console.log(`Webhook notification sent successfully to URL: ${data.request.url}`);
+        }
+    } catch (error) {
+        console.error(`Error sending webhook notification to URL: ${data.request.url} - ${error.message}`);
+        throw error;
     }
 }
 

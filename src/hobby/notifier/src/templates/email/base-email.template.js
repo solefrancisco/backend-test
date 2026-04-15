@@ -1,25 +1,20 @@
-const disclaimerText = 'Aviso: este correo fue generado por una solicitud externa a solefrancisco.com. Verificá la fuente antes de tomar acción.';
 
 function formatDateTime(dateTime) {
   return String(dateTime);
 }
 
-function buildDisclaimer(hasApiKey) {
-  if (hasApiKey) return '';
-
+function buildDisclaimer(notification_sent_by) {
   return `
     <div style="margin-top: 24px; padding: 16px; border-radius: 12px; background-color: #FFF4E5; border: 1px solid #F5C98B;">
       <p style="margin: 0; font-size: 14px; line-height: 22px; color: #9A5B00;">
-        ${disclaimerText}
+        \n\n Este correo fue generado por una solicitud de ${notification_sent_by}
       </p>
     </div>
   `;
 }
 
-function buildDisclaimerText(hasApiKey) {
-  if (hasApiKey) return '';
-
-  return '\n\n' + disclaimerText;
+function buildDisclaimerText(notification_sent_by) {
+  return `\n\n Este correo fue generado por una solicitud de ${notification_sent_by}.`;
 }
 
 function buildAppointmentEmailLayout({
@@ -31,17 +26,18 @@ function buildAppointmentEmailLayout({
   intro,
   patient_name,
   medic_name,
-  specialty,
+  speciality,
   starts_at,
   location,
   ctaText,
   footerNote,
-  hasApiKey,
+  notification_sent_by,
+
   headerBackground = 'linear-gradient(135deg, #003F2D 0%, #0A6A4A 100%)',
   headerEyebrowColor = '#CFE7DB',
   headerTitleColor = '#FFFFFF',
 }) {
-  const disclaimerHtml = buildDisclaimer(hasApiKey);
+  const disclaimerHtml = buildDisclaimer(notification_sent_by);
 
   return `
 <!DOCTYPE html>
@@ -96,7 +92,7 @@ function buildAppointmentEmailLayout({
                         ${medic_name || '-'}
                       </p>
                       <p style="margin: 0 0 18px 0; font-size: 20px; line-height: 28px; color: #667A72;">
-                        ${specialty || '-'}
+                        ${speciality || '-'}
                       </p>
 
                       <p style="margin: 0 0 10px 0; font-size: 16px; line-height: 24px; color: #4F655C;">
@@ -148,11 +144,11 @@ function buildAppointmentEmailText({
   intro,
   patient_name,
   medic_name,
-  specialty,
+  speciality,
   starts_at,
   location,
   footerNote,
-  hasApiKey,
+  notification_sent_by
 }) {
   return [
     title,
@@ -160,12 +156,12 @@ function buildAppointmentEmailText({
     `Hola ${patient_name || 'paciente'}, ${intro}`,
     '',
     `Profesional: ${medic_name || '-'}`,
-    `Especialidad: ${specialty || '-'}`,
+    `Especialidad: ${speciality || '-'}`,
     `Fecha y hora: ${formatDateTime(starts_at)}`,
     `Ubicación: ${location || '-'}`,
     '',
     footerNote,
-    buildDisclaimerText(hasApiKey),
+    buildDisclaimerText(notification_sent_by),
   ].join('\n');
 }
 

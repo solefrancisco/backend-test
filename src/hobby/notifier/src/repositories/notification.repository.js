@@ -7,9 +7,9 @@ class MySqlNotificationRepository {
     try {
       const [rows] = await this.pool.query(
         `
-          SELECT id
+          SELECT owner
           FROM api_keys
-          WHERE api_key = ?
+          WHERE api_key_hash = ?
             AND is_active = 1
           LIMIT 1
         `,

@@ -1,7 +1,6 @@
 require('module-alias/register');
 const cors = require('cors');
 const express = require('express');
-const { httpLogger } = require('@notify/middlewares/http-logger.middleware');
 const { errorHandler } = require('@notify/middlewares/error-handler.middleware');
 const { NotificationRouter } = require('@notify/routes/notification.route');
 
