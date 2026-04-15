@@ -1,7 +1,7 @@
 const { publishToQueue } = require('@notify/integrations/messaging/rabbit.publisher');
 const { hmacApiKey } = require('@notify/utils/hmac-api-key.util');
 const { InternalServerError } = require('@notify/errors/internal-server.error');
-const { BadRequestError } = require('@notify/errors/bad-request.error');
+const { UnauthorizedError } = require('@notify/errors/unauthorized.error');
 
 class NotificationService {
     constructor(notificationRepository) {
@@ -17,7 +17,7 @@ class NotificationService {
         }
 
         if (!apiKeyValidation.data) {
-            throw new BadRequestError('Invalid or inactive API key');
+            throw new UnauthorizedError('Invalid or inactive API key');
         }
 
         const queue = data.notify_by === 'email' ? 'notifications.email' : 'notifications.webhook';
