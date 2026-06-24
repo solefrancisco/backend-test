@@ -9,15 +9,13 @@ class NotificationsClient {
 
     async sendAppointmentNotification(payload, appointmentId, notificationStrategy, requestId) {
         const toUrl = `${this.baseUrl}/api/v1/notifications`;
-        let strategy;
 
         if (notificationStrategy.notify_by === 'email') {
             payload = this.notificationsAdapter.generateEmailNotification(payload, appointmentId, notificationStrategy.notification_type);
         } else if (notificationStrategy.notify_by === 'webhook') {
-            payload = this.notificationsAdapter.generateWebhookNotification(payload, appointmentId, notificationStrategy.notification_type);
+            payload = this.notificationsAdapter.generateWebhookNotification(payload, appointmentId, notificationStrategy, requestId);
         }
-        console.log(`${requestId} - Sending ${notificationStrategy.notify_by} notification for appointment id ${appointmentId} due to ${notificationStrategy.notification_type}`);
-
+        console.log(`${requestId} - Sending ${notificationStrategy.notify_by} notification for appointment id ${appointmentId} due to ${notificationStrategy.notification_type} event`);
         const startedAt = performance.now();
         const response = await fetch(toUrl, {
             method: 'POST',

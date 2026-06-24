@@ -157,11 +157,53 @@ class AppointmentsService {
             throw new BadRequestError('Cannot check-in more than 1 hour before the scheduled time');
         */
        
-        return await this.updateAppointmentStatusAndNotify(id, perform, null, actualStatus);
+        let webhookPayload = await this.checkIfWebhookRequired(id, appointmentInformation.speciality.id, "check-in", {patient_id: appointmentInformation.patient.id, medic_id: appointmentInformation.medic.id});
+        return await this.updateAppointmentStatusAndNotify(id, perform, null, actualStatus, webhookPayload);
     }
 
+    async checkIfWebhookRequired(appointmentId, appointmentSpecialityId, reason, metadata = {}){
+        let webhookPayload = [];
+
+        if (["cancelado", "reprogramado", "expirado", "ausente"].includes(reason)) {
+            const speciality = await this.specialitiesService.getSpecialityById(appointmentSpecialityId);
+            const isSurgery = speciality.type === "SURGERY";
+            const isHighComplexity = speciality.is_high_complexity;
+            const finalReason = reason === "ausente" ? "no se llevo a cabo porque el paciente no asistió" : reason;
+
+            if (isSurgery) {
+                webhookPayload.push({
+                    notify_by: 'webhook',
+                    notification_type: 'webhookOperationsRoom',
+                    appointmentId: appointmentId,
+                    metadata: metadata,
+                    reason: 'Turno quirúrgico ' + finalReason,
+                });
+            }
+            
+            if (isHighComplexity) {
+                webhookPayload.push({
+                    notify_by: 'webhook',
+                    notification_type: 'webhookHighComplexity',
+                    appointmentId: appointmentId,
+                    metadata: metadata,
+                    reason: 'Turno de alta complejidad ' + finalReason,
+                });
+            }
+        } else if (reason === "check-in") {
+            webhookPayload.push({
+                notify_by: 'webhook',
+                notification_type: 'webhookCheckIn',
+                appointmentId: appointmentId,
+                metadata: metadata,
+                reason: 'El paciente hizo checkin',
+            });
+        }
+
+        return webhookPayload;
+    }
     async cancelAppointment(id) {
         const appointment = await this.getAppointmentById(id);
+        const actualStatus = appointment.status;
 
         const perform = {
             action: 'cancelAppointment',
@@ -169,19 +211,8 @@ class AppointmentsService {
             repositoryFunction: (id) => this.appointmentsRepository.cancel(id),
         };
 
-        let webhookPayload = null;
-
-        //solo si es la especialidad Quirófano, consultar con core cual es
-        if (appointment.speciality.id === 5) {
-            webhookPayload = {
-                notify_by: 'webhook',
-                notification_type: 'webhookOperationsRoom',
-                appointmentId: id,
-                reason: 'Paciente canceló el turno quirúrgico',
-            };
-        }
-
-        return await this.updateAppointmentStatusAndNotify(id, perform, null, null, webhookPayload);
+        let webhookPayload = await this.checkIfWebhookRequired(id, appointment.speciality.id, "cancelado");
+        return await this.updateAppointmentStatusAndNotify(id, perform, null, actualStatus, webhookPayload);
     }
 
     async rescheduleAppointment(id, data) {
@@ -221,7 +252,8 @@ class AppointmentsService {
         if (checkAvailabilityResult.data)
             throw new ConflictError('The request conflicts with an existing appointment (ID: ' + checkAvailabilityResult.data.id + ')');
 
-        return await this.updateAppointmentStatusAndNotify(id, perform, data, actualStatus);
+        let webhookPayload = await this.checkIfWebhookRequired(id, appointmentInformation.speciality.id, "reprogramado");
+        return await this.updateAppointmentStatusAndNotify(id, perform, data, actualStatus, webhookPayload);
     }
 
     async startAppointment(id) {
@@ -267,7 +299,8 @@ class AppointmentsService {
             };
 
             try{
-                await this.updateAppointmentStatusAndNotify(id, perform);
+                let webhookPayload = await this.checkIfWebhookRequired(id, appointment.speciality.id, "expirado");
+                await this.updateAppointmentStatusAndNotify(id, perform, null, null, webhookPayload);
             } catch (error) {
                 continue; // continue with the next appointment, we don't want one failure to stop the whole expiration process
             }
@@ -321,7 +354,8 @@ class AppointmentsService {
             };
 
             try{
-                await this.updateAppointmentStatusAndNotify(id, perform);
+                let webhookPayload = await this.checkIfWebhookRequired(id, appointment.speciality.id, "ausente");
+                await this.updateAppointmentStatusAndNotify(id, perform, null, null, webhookPayload);
             } catch (error) {
                 continue; // continue with the next appointment, we don't want one failure to stop the whole expiration process
             }
@@ -352,7 +386,7 @@ class AppointmentsService {
         return { message: `Appointment ${perform.output} successfully` };
     }
 
-    async updateAppointmentStatusAndNotify(id, perform, data = null, originalStatus = null, webhookPayload = null) {
+    async updateAppointmentStatusAndNotify(id, perform, data = null, originalStatus = null, webhookPayload = []) {
         const rollbackStatus = originalStatus ?? await this.getAppointmentStatus(id);
         await this.updateAppointmentStatus(id, perform, rollbackStatus, data);
 
@@ -375,7 +409,7 @@ class AppointmentsService {
         };
     }
     
-    async sendChangeStatusNotification(id, action, webhookPayload = null) {
+    async sendChangeStatusNotification(id, action, webhookPayload = []) {
         const requestId = crypto.randomUUID();
         const originalNotificationData = await this.getNotificationOriginalData(id, requestId);
         const notificationsToQueue = [
@@ -385,12 +419,8 @@ class AppointmentsService {
             }
         ];
 
-        // Si viene un payload de webhook (ej: Quirófano), lo sumamos a la lista
-        if (webhookPayload) {
-            notificationsToQueue.push({
-                notify_by: 'webhook',
-                notification_type: webhookPayload.notification_type,
-            });
+        if (webhookPayload.length > 0) {
+            notificationsToQueue.push(...webhookPayload);
         }
 
         try {
@@ -415,8 +445,8 @@ class AppointmentsService {
         
         const checkNotificationUuid = getNotificationOriginalUuid.data.notification_uuid;
 
-        const notificationData = await this.notificationsClient.getNotification(checkNotificationUuid, requestId);
         console.log(`${requestId} - Retrieving notification ${checkNotificationUuid} related to appointment id ${appointmentId} from notifier`);
+        const notificationData = await this.notificationsClient.getNotification(checkNotificationUuid, requestId);
         if (!notificationData.success)
             throw new InternalServerError('Failed to retrieve original contact data from notification service for appointment id ' + appointmentId);
         

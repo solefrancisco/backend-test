@@ -31,7 +31,8 @@ class MySqlSpecialitiesRepository {
           SELECT
             id,
             name,
-            is_high_complexity
+            is_high_complexity,
+            type
           FROM specialities
           WHERE id = ?
           LIMIT 1

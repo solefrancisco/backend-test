@@ -30,31 +30,19 @@ function getDefaultNotificationTemplate(data, appointmentId, notificationTemplat
     };
 }
 
-function getWebhookNotificationTemplate(data, appointmentId, notificationTemplate) {
+function getDefaultWebhookNotificationTemplate(data, appointmentId, notificationTemplate, url, reason, requestId) {
     const notificationData = data.data || data;
-
+    console.log(`${requestId} - Webhook notification target URL:`, url);
     return {
-        notify_by: 'webhook', // 👈 Pasa la validación z.literal('webhook')
-        request: {            // 👈 Abre el objeto obligatorio 'request'
-            // Sacamos la URL de destino de las variables de entorno
-            url: process.env.OPERATING_ROOM_WEBHOOK_URL || 'https://api.quirofano-externo.com/v1/webhook',
+        notify_by: 'webhook',
+        request: {
+            url: url,
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: { // 👈 Metemos los datos del evento adentro del body que viajará al tercero
-                notification_type: notificationTemplate,
-                appointment: {
-                    id: appointmentId,
-                    starts_at: notificationData.appointment.starts_at,
-                    speciality_name: notificationData.appointment.speciality_name,
-                    medical_center_name: notificationData.appointment.medical_center_name,
-                },
-                patient: {
-                    fullname: notificationData.patient.fullname,
-                },
-                // Si necesitas pasar el motivo de la cancelación que guardamos antes:
-                reason: data.reason || 'Cancelación de turno quirúrgico'
+            body: {
+                reason: reason
             }
         }
     };
@@ -117,8 +105,50 @@ function generateAbsentAppointmentNotification(data, appointmentId, notification
     return notification;
 }
 
-function generateWebhookNotification(data, appointmentId, notificationTemplate) {
-    const notification = getWebhookNotificationTemplate(data, appointmentId, notificationTemplate);
+function generateOperationsRoomWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
+    const url = process.env.OPERATING_ROOM_WEBHOOK_URL || 'https://webhook.site/a9b2fece-53f8-4fb0-bf1e-b350a862f99a';
+    const notificationOriginalData = data.data;
+    const notification = getDefaultWebhookNotificationTemplate(notificationOriginalData, appointmentId, notificationTemplate, url, reason, requestId);
+    
+    notification.request.body.appointment = {
+        id: appointmentId,
+        starts_at: notificationOriginalData.appointment.starts_at,
+        speciality_name: notificationOriginalData.appointment.speciality_name,
+        medical_center_name: notificationOriginalData.appointment.medical_center_name,
+    }
+
+    return notification;
+}
+
+function generateHighComplexityWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
+    const url = process.env.HIGH_COMPLEXITY_WEBHOOK_URL || 'https://webhook.site/a9b2fece-53f8-4fb0-bf1e-b350a862f99a';
+    const notificationOriginalData = data.data;
+    const notification = getDefaultWebhookNotificationTemplate(data, appointmentId, notificationTemplate, url, reason, requestId);
+
+    notification.request.body.appointment = {
+        id: appointmentId,
+    }
+    return notification;
+}
+
+function generateCheckInWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
+    const url = process.env.CHECK_IN_WEBHOOK_URL || 'https://webhook.site/a9b2fece-53f8-4fb0-bf1e-b350a862f99a';
+    const notificationOriginalData = data.data;
+    const notification = getDefaultWebhookNotificationTemplate(data, appointmentId, notificationTemplate, url, reason, requestId);
+
+    notification.request.body.appointment = {
+        id: appointmentId,
+        starts_at: notificationOriginalData.appointment.starts_at,
+        checked_in_at: getFormattedTimestamp(),
+    }
+
+    notification.request.body.patient = {
+        id: metadata.patient_id,
+    };
+
+    notification.request.body.medic = {
+        id: metadata.medic_id,
+    };
     return notification;
 }
 
@@ -132,5 +162,7 @@ module.exports = {
     generateExpiredAppointmentNotification,
     generateReminderAppointmentNotification,
     generateAbsentAppointmentNotification,
-    generateWebhookNotification
+    generateOperationsRoomWebhookNotification,
+    generateHighComplexityWebhookNotification,
+    generateCheckInWebhookNotification
 };
