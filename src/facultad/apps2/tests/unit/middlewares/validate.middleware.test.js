@@ -4,7 +4,7 @@ const { z } = require('zod');
 
 const { validate } = require('@apps2/middlewares/validate.middleware');
 
-test('validate calls next and stores parsed data in validatedBody when body is valid', () => {
+test('validate calls next and stores parsed data in validatedRequest when body is valid', () => {
   const schema = z.object({ id: z.coerce.number().int().positive() });
   const middleware = validate(schema, 'body');
 
@@ -21,7 +21,7 @@ test('validate calls next and stores parsed data in validatedBody when body is v
   });
 
   assert.equal(nextCalled, true);
-  assert.deepEqual(req.validatedBody, { id: 5 });
+  assert.deepEqual(req.validatedRequest, { id: 5 });
 });
 
 test('validate returns 400 with details when validation fails', () => {
@@ -73,5 +73,5 @@ test('validate can read from params source', () => {
 
   middleware(req, res, () => {});
 
-  assert.deepEqual(req.validatedBody, { id: 10 });
+  assert.deepEqual(req.validatedRequest, { id: 10 });
 });

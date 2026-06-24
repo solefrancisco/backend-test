@@ -25,7 +25,10 @@ function validate(schema, source) {
       });
     }
 
-    req.validatedBody = result.data;
+    req.validatedRequest = {
+      ...req.validatedRequest,
+      [source]: result.data
+    };
     next();
   };
 }

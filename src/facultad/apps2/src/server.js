@@ -11,7 +11,7 @@ async function startServer() {
 
     const dependencies = buildDependencies();
     const app = createApp(dependencies);
-    const port = env.port || 3000;
+    const port = env.port;
 
     app.listen(port, () => {
         console.log(`Server listening on port ${port}`);

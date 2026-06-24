@@ -1,3 +1,4 @@
+const { only } = require('node:test');
 const { z } = require('zod');
 const dateTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -41,7 +42,17 @@ const getAppointmentsSchema = z.object({
     .int('speciality_id must be an integer')
     .positive('speciality_id must be greater than 0')
     .optional(),
-
+  
+  light_response: z
+    .coerce.number({
+      invalid_type_error: 'light_response must be 0 or 1'
+    })
+    .int('light_response must be 0 or 1')
+    .refine(value => value === 0 || value === 1, {
+      message: 'light_response must be 0 or 1'
+    })
+    .optional(),
+  
   page: z
     .coerce.number({
       invalid_type_error: 'page must be a number'
@@ -81,6 +92,15 @@ const getAppointmentsSchema = z.object({
       message: 'medic_id and patient_id cannot be the same',
       path: ['patient_id'],
     });
+  }
+
+  // regla 4: si se envía light_response=1, se debe enviar al menos especialidad y centro médico
+  if (data.light_response === 1 && (!data.speciality_id || !data.medical_center_id)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'if light_response=1, speciality_id and medical_center_id are required',
+      path: ['light_response'],
+    }); 
   }
 });
 
