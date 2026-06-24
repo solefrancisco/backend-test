@@ -1,12 +1,15 @@
 const { rabbitConfig } = require('@notify/configs/rabbitmq.config');
 const { connectRabbit } = require('@notify/integrations/messaging/rabbit.client');
+const { operatingRoomsClient: OperatingRoomsClient } = require('@notify/integrations/webhook/operating-rooms.client');
+
+const operatingRoomsClient = new OperatingRoomsClient();
 
 async function processWebhookNotification(data) {
     const method = data.request.method;
     const headers = { ...(data.request.headers || {}) };
 
     const requestOptions = {
-        method: 'POST',
+        method,
         headers,
     };
 
@@ -59,8 +62,19 @@ function getRetryCount(message) {
 }
 
 async function requeueMessage(channel, message, nextRetryCount) {
+    const retryQueueMapper = {
+        1: rabbitConfig.queues.webhook.retry1,
+        2: rabbitConfig.queues.webhook.retry2,
+        3: rabbitConfig.queues.webhook.retry3,
+    }
+
+    const targetQueue = nextRetryCount <= rabbitConfig.maxRetries
+        ? retryQueueMapper[nextRetryCount]
+        : rabbitConfig.queues.webhook.deadLetter;
+    
+
     const sent = channel.sendToQueue(
-        rabbitConfig.queues.webhook,
+        targetQueue,
         message.content,
         {
             persistent: true,
@@ -80,10 +94,10 @@ async function requeueMessage(channel, message, nextRetryCount) {
 async function startWebhookConsumer() {
     const channel = await connectRabbit();
 
-    await channel.assertQueue(rabbitConfig.queues.webhook, { durable: true });
+    await channel.assertQueue(rabbitConfig.queues.webhook.default, { durable: true });
     channel.prefetch(1);
 
-    channel.consume(rabbitConfig.queues.webhook, async (message) => {
+    channel.consume(rabbitConfig.queues.webhook.default, async (message) => {
         if (!message) {
             return;
         }
@@ -93,18 +107,27 @@ async function startWebhookConsumer() {
         try {
             const data = JSON.parse(message.content.toString());
 
-            await processWebhookNotification(data);
+            // If the payload is an internal event for surgery cancellation,
+            // invoke the operating rooms client maintained here (notifier will call M6).
+            if (data.event === 'SURGERY_CANCELLED' && data.appointmentId) {
+                await operatingRoomsClient.cancelOperatingRoomReservation(
+                    data.appointmentId,
+                    data.reason || data.motive || ''
+                );
+            } else if (data.request) {
+                // Generic webhook payload with `request` object - forward using generic fetch
+                await processWebhookNotification(data);
+            } else {
+                throw new Error('Unsupported webhook payload: missing request or event handler');
+            }
+
             channel.ack(message);
         } catch (error) {
             const nextRetryCount = retryCount + 1;
 
             try {
-                if (nextRetryCount <= rabbitConfig.maxRetries) {
-                    await requeueMessage(channel, message, nextRetryCount);
-                    channel.ack(message);
-                } else {
-                    channel.nack(message, false, false);
-                }
+                await requeueMessage(channel, message, nextRetryCount);
+                channel.ack(message);
             } catch (requeueError) {
                 channel.nack(message, false, false);
             }

@@ -1,4 +1,5 @@
 const { connectRabbit } = require('./rabbit.client');
+const { rabbitConfig } = require('@notify/configs/rabbitmq.config');
 
 async function publishToQueue(queue, payload) {
     const ch = await connectRabbit();
@@ -6,7 +7,13 @@ async function publishToQueue(queue, payload) {
     const sent = ch.sendToQueue(
         queue,
         Buffer.from(JSON.stringify(payload)),
-        { persistent: true }
+        {
+            persistent: true,
+            contentType: 'application/json',
+            headers: {
+                "retryCount": 0,
+            }
+        }
     );
 
     if (!sent) {

@@ -5,7 +5,7 @@ const {
   buildAppointmentMedicEmailText,
 } = require('./base-email.template');
 
-function renderAppointmentPendingConfirmationTemplate(data) {
+function renderAppointmentAbsentTemplate(data) {
   return [
     {
       to: data.patient.email,
@@ -21,83 +21,83 @@ function renderAppointmentPendingConfirmationTemplate(data) {
 }
 
 function buildPatientTemplate(data) {
-  const subject = 'Confirmación de turno pendiente';
+  const subject = 'Registramos tu ausencia al turno';
 
   return {
     subject,
     html: buildAppointmentPatientEmailLayout({
-      title: 'Confirmación de turno',
-      preheader: 'Tu turno fue registrado correctamente y está pendiente de confirmación.',
-      badgeText: 'Pendiente',
+      title: 'Ausencia registrada',
+      preheader: 'Registramos que no te presentaste a tu turno.',
+      badgeText: 'Ausente',
       badgeBackground: '#FFF4E5',
-      badgeColor: '#C86A00',
-      intro: 'tu turno fue registrado correctamente y quedó pendiente de confirmación.',
+      badgeColor: '#B54708',
+      intro: 'registramos que no te presentaste a tu turno.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
       medical_center_name: data.appointment.medical_center_name,
-      ctaText: 'Te notificaremos nuevamente cuando el turno sea confirmado o cancelado.',
-      footerNote: 'Por favor verificá los datos del turno y mantenete atento a futuras actualizaciones.',
+      ctaText: 'Si todavía necesitás atención médica, podés solicitar un nuevo turno desde el portal.',
+      footerNote: 'Ante cualquier duda o si considerás que hubo un error, comunicate con el centro médico.',
       notification_sent_by: data.notification_sent_by,
-      headerBackground: 'linear-gradient(135deg, #FFF7ED 0%, #FFE2B8 100%)',
-      headerEyebrowColor: '#9A6700',
-      headerTitleColor: '#7A4B00',
+      headerBackground: 'linear-gradient(135deg, #FFFAEB 0%, #FEF0C7 100%)',
+      headerEyebrowColor: '#B54708',
+      headerTitleColor: '#93370D',
     }),
     text: buildAppointmentPatientEmailText({
-      title: 'Confirmación de turno',
-      intro: 'tu turno fue registrado correctamente y quedó pendiente de confirmación.',
+      title: 'Ausencia registrada',
+      intro: 'registramos que no te presentaste a tu turno.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
       medical_center_name: data.appointment.medical_center_name,
       footerNote:
-        'Te notificaremos nuevamente cuando el turno sea confirmado o cancelado.\n\n' +
-        'Por favor verificá los datos del turno y mantenete atento a futuras actualizaciones.',
+        'Si todavía necesitás atención médica, podés solicitar un nuevo turno desde el portal.\n\n' +
+        'Ante cualquier duda o si considerás que hubo un error, comunicate con el centro médico.',
       notification_sent_by: data.notification_sent_by,
     }),
   };
 }
 
 function buildMedicTemplate(data) {
-  const subject = 'Nuevo turno pendiente de confirmación';
+  const subject = 'Un paciente no se presentó al turno';
 
   return {
     subject,
     html: buildAppointmentMedicEmailLayout({
-      title: 'Nuevo turno solicitado',
-      preheader: 'Se registró un nuevo turno pendiente de confirmación.',
-      badgeText: 'Pendiente',
-      badgeBackground: '#EEF4FF',
-      badgeColor: '#175CD3',
-      intro: 'se registró un nuevo turno asociado a tu agenda profesional.',
+      title: 'Paciente ausente',
+      preheader: 'Un paciente no se presentó a un turno de tu agenda.',
+      badgeText: 'Ausencia registrada',
+      badgeBackground: '#FFFAEB',
+      badgeColor: '#B54708',
+      intro: 'un paciente no se presentó a un turno de tu agenda profesional.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
       medical_center_name: data.appointment.medical_center_name,
-      ctaText: 'El turno permanece pendiente hasta recibir confirmación o cancelación.',
+      ctaText: 'El turno quedó marcado como ausencia del paciente.',
       footerNote: 'Este mensaje es únicamente informativo para mantener actualizada tu agenda.',
       notification_sent_by: data.notification_sent_by,
-      headerBackground: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
-      headerEyebrowColor: '#1D4ED8',
-      headerTitleColor: '#1E3A8A',
+      headerBackground: 'linear-gradient(135deg, #FFFAEB 0%, #FEF0C7 100%)',
+      headerEyebrowColor: '#B54708',
+      headerTitleColor: '#93370D',
     }),
     text: buildAppointmentMedicEmailText({
-      title: 'Nuevo turno solicitado',
-      intro: 'se registró un nuevo turno asociado a tu agenda profesional.',
+      title: 'Paciente ausente',
+      intro: 'un paciente no se presentó a un turno de tu agenda profesional.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
       medical_center_name: data.appointment.medical_center_name,
       footerNote:
-        'El turno permanece pendiente hasta recibir confirmación o cancelación.\n\n' +
+        'El turno quedó marcado como ausencia del paciente.\n\n' +
         'Este mensaje es únicamente informativo para mantener actualizada tu agenda.',
       notification_sent_by: data.notification_sent_by,
     }),
   };
 }
 
-module.exports = { renderAppointmentPendingConfirmationTemplate };
+module.exports = { renderAppointmentAbsentTemplate };

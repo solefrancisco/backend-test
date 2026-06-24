@@ -22,6 +22,18 @@ module.exports = {
         },
         appointment_reminder: {
             from: `Recordatorio de turno <recordatorios@${env.smtpBaseDomain}>`
+        },
+        appointment_checked_in: {
+            from: `Check-in de turno <checkin@${env.smtpBaseDomain}>`
+        },
+        appointment_finished: {
+            from: `Turno finalizado <finalizados@${env.smtpBaseDomain}>`
+        },
+        appointment_expired: {
+            from: `Turno expirado <cancelaciones@${env.smtpBaseDomain}>`
+        },
+        appointment_absent: {
+            from: `Ausencia de paciente <ausencias@${env.smtpBaseDomain}>`
         }
     }
   }

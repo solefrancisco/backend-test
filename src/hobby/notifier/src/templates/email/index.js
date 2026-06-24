@@ -4,31 +4,31 @@ const { renderAppointmentConfirmedTemplate } = require('./appointment-confirmed.
 const { renderAppointmentCancelledTemplate } = require('./appointment-cancelled.template');
 const { renderAppointmentRescheduledTemplate } = require('./appointment-rescheduled.template');
 const { renderAppointmentReminderTemplate } = require('./appointment-reminder.template');
+const { renderAppointmentCheckedInTemplate } = require('./appointment-checked-in.template');
+const { renderAppointmentFinishedTemplate } = require('./appointment-finished.template');
+const { renderAppointmentExpiredTemplate } = require('./appointment-expired.template');
+const { renderAppointmentAbsentTemplate } = require('./appointment-absent.template');
+
+const templateMapper = {
+    "appointment_pending_confirmation": renderAppointmentPendingConfirmationTemplate,
+    "appointment_confirmed": renderAppointmentConfirmedTemplate,
+    "appointment_cancelled": renderAppointmentCancelledTemplate,
+    "appointment_rescheduled": renderAppointmentRescheduledTemplate,
+    "appointment_reminder": renderAppointmentReminderTemplate,
+    "appointment_checked_in": renderAppointmentCheckedInTemplate,
+    "appointment_finished": renderAppointmentFinishedTemplate,
+    "appointment_expired": renderAppointmentExpiredTemplate,
+    "appointment_absent": renderAppointmentAbsentTemplate
+};
 
 function renderEmailTemplate(data) {
-  const type = data.notification_type;
+    const type = data.notification_type;
+    const renderer = templateMapper[type];
 
-  if (type === 'appointment_pending_confirmation') {
-    return renderAppointmentPendingConfirmationTemplate(data);
-  }
+    if (!renderer)
+        throw new BadRequestError(`Invalid email notification type '${type}'`);
 
-  if (type === 'appointment_confirmed') {
-    return renderAppointmentConfirmedTemplate(data);
-  }
-
-  if (type === 'appointment_cancelled') {
-    return renderAppointmentCancelledTemplate(data);
-  }
-
-  if (type === 'appointment_rescheduled') {
-    return renderAppointmentRescheduledTemplate(data);
-  }
-
-  if (type === 'appointment_reminder') {
-    return renderAppointmentReminderTemplate(data);
-  }
-
-  throw new BadRequestError('Invalid email notification type');
+    return renderer(data);
 }
 
 module.exports = { renderEmailTemplate };

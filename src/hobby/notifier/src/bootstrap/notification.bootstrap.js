@@ -2,6 +2,7 @@ const { NotificationController } = require('@notify/controllers/notification.con
 const { NotificationService } = require('@notify/services/notification.service');
 const { startEmailConsumer } = require('@notify/integrations/messaging/consumers/email.consumer');
 const { startWebhookConsumer } = require('@notify/integrations/messaging/consumers/webhook.consumer');
+const { dbPool } = require('@notify/configs/database.config');
 
 
 function buildNotificationController() {
@@ -10,18 +11,24 @@ function buildNotificationController() {
 }
 
 function buildNotificationRepository() {
-    return buildMySqlRepository();
+    return buildMySqlNotificationRepository();
 }
 
-function buildMySqlRepository() {
-    const { dbPool } = require('@notify/configs/database.config');
+function buildMySqlNotificationRepository() {
     const { MySqlNotificationRepository } = require('@notify/repositories/notification.repository');
     return new MySqlNotificationRepository(dbPool);
 }
 
+function buildMySqlNotificationConsumerRepository() {
+    const { MySqlNotificationConsumerRepository } = require('@notify/repositories/consumer.repository');
+    return new MySqlNotificationConsumerRepository(dbPool);
+}
+
 async function bootstrapNotificationConsumers() {
-    await startEmailConsumer();
-    await startWebhookConsumer();
+    const notificationConsumerRepository = buildMySqlNotificationConsumerRepository();
+
+    await startEmailConsumer(notificationConsumerRepository);
+    await startWebhookConsumer(notificationConsumerRepository);
 }
 
 module.exports = { buildNotificationController, bootstrapNotificationConsumers };

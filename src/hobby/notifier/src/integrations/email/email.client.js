@@ -6,7 +6,7 @@ function createEmailTransporter(notification_type) {
     const emailAccount = emailConfig.emails[notification_type];
 
     if (!emailAccount) {
-        throw new BadRequestError('Invalid email notification type');
+        throw new BadRequestError('Invalid email notification email type');
     }
     
     const transporter = nodemailer.createTransport({

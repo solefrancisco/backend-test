@@ -5,7 +5,7 @@ const {
   buildAppointmentMedicEmailText,
 } = require('./base-email.template');
 
-function renderAppointmentRescheduledTemplate(data) {
+function renderAppointmentCheckedInTemplate(data) {
   return [
     {
       to: data.patient.email,
@@ -21,66 +21,66 @@ function renderAppointmentRescheduledTemplate(data) {
 }
 
 function buildPatientTemplate(data) {
-  const subject = 'Tu turno fue reprogramado';
+  const subject = 'Registramos tu llegada al centro médico';
 
   return {
     subject,
     html: buildAppointmentPatientEmailLayout({
-      title: 'Nuevo horario para tu turno',
-      preheader: 'Tu turno fue actualizado con una nueva fecha u horario.',
-      badgeText: 'Reprogramado',
-      badgeBackground: '#EEF3FF',
-      badgeColor: '#1D4ED8',
-      intro: 'tu turno fue reprogramado. A continuación te compartimos los datos actualizados.',
+      title: 'Check-in realizado',
+      preheader: 'Tu presencia fue confirmada en el centro médico.',
+      badgeText: 'Presente',
+      badgeBackground: '#E6F4EC',
+      badgeColor: '#0A6A4A',
+      intro: 'registramos tu llegada al centro médico correctamente.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
-      original_starts_at: data.appointment.original_starts_at,
+      checked_in_at: data.appointment.checked_in_at,
       medical_center_name: data.appointment.medical_center_name,
-      ctaText: 'Recordá presentarte en la nueva fecha y horario indicados.',
-      footerNote: 'Si no podés asistir en este nuevo horario, comunicate con el centro médico para gestionar una nueva reprogramación.',
+      ctaText: 'Aguardá a ser llamado para la atención médica.',
+      footerNote: 'Este mensaje confirma que un administrativo registró tu presencia.',
       notification_sent_by: data.notification_sent_by,
-      headerBackground: 'linear-gradient(135deg, #EFF8FF 0%, #D1E9FF 100%)',
-      headerEyebrowColor: '#175CD3',
-      headerTitleColor: '#1849A9',
+      headerBackground: 'linear-gradient(135deg, #ECFDF3 0%, #D1FADF 100%)',
+      headerEyebrowColor: '#067647',
+      headerTitleColor: '#065F46',
     }),
     text: buildAppointmentPatientEmailText({
-      title: 'Nuevo horario para tu turno',
-      intro: 'tu turno fue reprogramado. A continuación te compartimos los datos actualizados.',
+      title: 'Check-in realizado',
+      intro: 'registramos tu llegada al centro médico correctamente.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
-      original_starts_at: data.appointment.original_starts_at,
+      checked_in_at: data.appointment.checked_in_at,
       medical_center_name: data.appointment.medical_center_name,
       footerNote:
-        'Recordá presentarte en la nueva fecha y horario indicados.\n\n' +
-        'Si no podés asistir en este nuevo horario, comunicate con el centro médico para gestionar una nueva reprogramación.',
+        'Aguardá a ser llamado para la atención médica.\n\n' +
+        'Este mensaje confirma que un administrativo registró tu presencia.',
       notification_sent_by: data.notification_sent_by,
     }),
   };
 }
 
 function buildMedicTemplate(data) {
-  const subject = 'Se reprogramó un turno en tu agenda';
+  const subject = 'El paciente realizó el check-in';
 
   return {
     subject,
     html: buildAppointmentMedicEmailLayout({
-      title: 'Actualización de agenda',
-      preheader: 'Un turno asociado a tu agenda profesional fue reprogramado.',
-      badgeText: 'Agenda actualizada',
+      title: 'Paciente presente',
+      preheader: 'El paciente llegó al centro médico y su presencia fue confirmada.',
+      badgeText: 'Paciente presente',
       badgeBackground: '#EEF4FF',
       badgeColor: '#175CD3',
-      intro: 'se actualizó un turno asignado a tu agenda profesional.',
+      intro: 'el paciente llegó al centro médico y ya fue registrado por administración.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
-      original_starts_at: data.appointment.original_starts_at,
+      checked_in_at: data.appointment.checked_in_at,
       medical_center_name: data.appointment.medical_center_name,
-      ctaText: 'Tené en cuenta el nuevo horario para la atención del paciente.',
+      ctaText: 'El paciente se encuentra disponible para ser llamado a la sala.',
       footerNote: 'Este mensaje es únicamente informativo para mantener actualizada tu agenda.',
       notification_sent_by: data.notification_sent_by,
       headerBackground: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
@@ -88,20 +88,20 @@ function buildMedicTemplate(data) {
       headerTitleColor: '#1E3A8A',
     }),
     text: buildAppointmentMedicEmailText({
-      title: 'Actualización de agenda',
-      intro: 'se actualizó un turno asignado a tu agenda profesional.',
+      title: 'Paciente presente',
+      intro: 'el paciente llegó al centro médico y ya fue registrado por administración.',
       patient_name: data.patient.fullname,
       medic_name: data.medic.fullname,
       speciality: data.appointment.speciality_name,
       starts_at: data.appointment.starts_at,
-      original_starts_at: data.appointment.original_starts_at,
+      checked_in_at: data.appointment.checked_in_at,
       medical_center_name: data.appointment.medical_center_name,
       footerNote:
-        'Tené en cuenta el nuevo horario para la atención del paciente.\n\n' +
+        'El paciente se encuentra disponible para ser llamado a la sala.\n\n' +
         'Este mensaje es únicamente informativo para mantener actualizada tu agenda.',
       notification_sent_by: data.notification_sent_by,
     }),
   };
 }
 
-module.exports = { renderAppointmentRescheduledTemplate };
+module.exports = { renderAppointmentCheckedInTemplate };
