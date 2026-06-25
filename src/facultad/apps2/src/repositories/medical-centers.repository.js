@@ -46,7 +46,10 @@ class MySqlMedicalCentersRepository {
         `
           SELECT
             id,
-            name
+            name,
+            city,
+            lat,
+            lng
           FROM medical_centers
           WHERE id = ?
           LIMIT 1
