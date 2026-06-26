@@ -117,6 +117,14 @@ function generateOperationsRoomWebhookNotification(data, appointmentId, notifica
         medical_center_name: notificationOriginalData.appointment.medical_center_name,
     }
 
+    
+    if (reason.includes('reprogramado')) {
+        notification.request.body.appointment.previous_starts_at = metadata.previous_starts_at;
+        notification.request.body.appointment.previous_ends_at = metadata.previous_ends_at;
+        notification.request.body.appointment.new_starts_at = metadata.new_starts_at;
+        notification.request.body.appointment.new_ends_at = metadata.new_ends_at;
+    }
+
     return notification;
 }
 
@@ -128,6 +136,14 @@ function generateHighComplexityWebhookNotification(data, appointmentId, notifica
     notification.request.body.appointment = {
         id: appointmentId,
     }
+
+    if (reason.includes('reprogramado')) {
+        notification.request.body.appointment.previous_starts_at = metadata.previous_starts_at;
+        notification.request.body.appointment.previous_ends_at = metadata.previous_ends_at;
+        notification.request.body.appointment.new_starts_at = metadata.new_starts_at;
+        notification.request.body.appointment.new_ends_at = metadata.new_ends_at;
+    }
+
     return notification;
 }
 

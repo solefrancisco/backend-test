@@ -1,25 +1,25 @@
 class NotificationsController {
-    constructor (notificationsClient) {
-        this.notificationsClient = notificationsClient;
+    constructor (notificationsService) {
+        this.notificationsService = notificationsService;
     }
 
     async getNotifications (req,res,next) {
         try {
             const query = req.query;
-            const notifications = await this.notificationsClient.getNotifications(query, req.requestId);
+            const notifications = await this.notificationsService.getNotifications(query);
 
-            res.status(200).json(notifications);
+            res.status(notifications.status).json(notifications.data);
         } catch (error) {
             next(error);
         }
     }
 
-    async getNotification (req,res,next) {
+    async getNotificationById (req,res,next) {
         try {
             const { uuid } = req.params;
-            const notification = await this.notificationsClient.getNotification(uuid, req.requestId);
+            const notification = await this.notificationsService.getNotificationById(uuid);
 
-            res.status(200).json(notification);
+            res.status(notification.status).json(notification.data);
         } catch (error) {
             next(error);
         }

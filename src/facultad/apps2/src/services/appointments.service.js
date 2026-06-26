@@ -252,7 +252,14 @@ class AppointmentsService {
         if (checkAvailabilityResult.data)
             throw new ConflictError('The request conflicts with an existing appointment (ID: ' + checkAvailabilityResult.data.id + ')');
 
-        let webhookPayload = await this.checkIfWebhookRequired(id, appointmentInformation.speciality.id, "reprogramado");
+        const metadata = {
+            previous_starts_at: actualStartsAt,
+            previous_ends_at: actualEndsAt,
+            new_starts_at: data.starts_at,
+            new_ends_at: data.ends_at
+        }
+
+        let webhookPayload = await this.checkIfWebhookRequired(id, appointmentInformation.speciality.id, "reprogramado", metadata);
         return await this.updateAppointmentStatusAndNotify(id, perform, data, actualStatus, webhookPayload);
     }
 
@@ -446,7 +453,7 @@ class AppointmentsService {
         const checkNotificationUuid = getNotificationOriginalUuid.data.notification_uuid;
 
         console.log(`${requestId} - Retrieving notification ${checkNotificationUuid} related to appointment id ${appointmentId} from notifier`);
-        const notificationData = await this.notificationsClient.getNotification(checkNotificationUuid, requestId);
+        const notificationData = await this.notificationsClient.getNotificationById(checkNotificationUuid, requestId);
         if (!notificationData.success)
             throw new InternalServerError('Failed to retrieve original contact data from notification service for appointment id ' + appointmentId);
         
@@ -537,14 +544,45 @@ class AppointmentsService {
     }
 
     async getAppointmentNotificationsById(appointmentId) {
+        await this.getAppointmentById(appointmentId);
+
         const getNotifications = await this.appointmentsRepository.getAppointmentNotificationsById(appointmentId);
         if (!getNotifications.success)
-            throw new InternalServerError('Failed to retrieve notifications for appointment ID ${appointmentId}. Error: ${getNotifications.errorMessage}');
+            throw new InternalServerError(`Failed to retrieve notifications for this appointment. Error: ${getNotifications.errorMessage}`);
         
         if (!getNotifications.data)
-            throw new InternalServerError('No notifications found for appointment ID ${appointmentId}' + appointmentId);
-        
-        return getNotifications.data;
+            throw new InternalServerError(`No notifications found for appointment ID ${appointmentId}`);
+
+        const grouped = Object.values(
+            getNotifications.data.reduce((acc, notification) => {
+                const { notification_uuid, reason, created_at } = notification;
+
+                if (!acc[notification_uuid]) {
+                    acc[notification_uuid] = {
+                        notification_uuid,
+                        event: null,
+                        notifications: []
+                    };
+                }
+
+                if (reason.startsWith('webhook')) {
+                    acc[notification_uuid].notifications.push({
+                        to: reason,
+                        created_at
+                    });
+                } else {
+                    acc[notification_uuid].event = reason;
+                    acc[notification_uuid].notifications.push({
+                        to: 'email',
+                        created_at
+                    });
+                }
+
+                return acc;
+            }, {})
+        );
+
+        return grouped;
     }
 }
 

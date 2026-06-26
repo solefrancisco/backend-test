@@ -8,7 +8,7 @@ function NotificationsRouter (notificationsController) {
     );
 
     router.get('/:uuid',
-        (req,res,next) => notificationsController.getNotification(req,res,next)
+        (req,res,next) => notificationsController.getNotificationById(req,res,next)
     );
 
     return router;

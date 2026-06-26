@@ -143,23 +143,68 @@ class MySqlMedicalCentersRepository {
         const slotMs = slotMinutes * 60 * 1000;
 
         function computeEarliest(appts) {
-          let candidate = new Date(sinceDate.getTime());
+          const OPEN_HOUR = 9;
+          const CLOSE_HOUR = 18;
+
           appts = (appts || []).slice().sort((a, b) => a.starts_at - b.starts_at);
 
+          let candidate = new Date(sinceDate.getTime());
+
+          // Alinear al múltiplo de 30 minutos más cercano
+          candidate.setSeconds(0, 0);
+
+          const minutes = candidate.getMinutes();
+          if (minutes % slotMinutes !== 0) {
+            candidate.setMinutes(
+            Math.ceil(minutes / slotMinutes) * slotMinutes,
+            0,
+            0
+            );
+          }
+
           while (candidate < untilDate) {
+            const hour = candidate.getHours();
+            const minute = candidate.getMinutes();
+
+            // Antes de las 09:00 → 09:00
+            if (hour < OPEN_HOUR) {
+              candidate.setHours(OPEN_HOUR, 0, 0, 0);
+              continue;
+            }
+
+            // Después del último slot válido (17:30)
+            if (
+              hour > CLOSE_HOUR - 1 ||
+              (hour === CLOSE_HOUR - 1 && minute > 30)
+            ) {
+              candidate.setDate(candidate.getDate() + 1);
+              candidate.setHours(OPEN_HOUR, 0, 0, 0);
+              continue;
+              }
+
             const candidateEnd = new Date(candidate.getTime() + slotMs);
+
             let overlapped = false;
+
             for (const a of appts) {
-              if (a.starts_at < candidateEnd && a.ends_at > candidate) {
+              if (
+                a.starts_at < candidateEnd &&
+                a.ends_at > candidate
+              ) {
                 overlapped = true;
                 break;
-              }
+                }
             }
-            if (!overlapped) return candidate;
+
+            if (!overlapped) {
+              return candidate;
+            }
+
             candidate = new Date(candidate.getTime() + slotMs);
           }
-          return null;
-        }
+
+        return null;
+      }
 
         function formatDate(d) {
           if (!d) return null;

@@ -525,9 +525,13 @@ class MySqlAppointmentsRepository {
     try{
       const [rows] = await this.pool.query(
         `
-          SELECT notification_uuid
+          SELECT 
+            notification_uuid,
+            reason,
+            DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
           FROM appointments_notifications
           WHERE id = ?
+          ORDER BY created_at DESC
         `,
         [appointmentId]
       );

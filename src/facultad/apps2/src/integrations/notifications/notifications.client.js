@@ -39,7 +39,7 @@ class NotificationsClient {
         return { success };
     }
 
-    async getNotification(notificationUuid, requestId) {
+    async getNotificationById(notificationUuid, requestId) {
         const toUrl = `${this.baseUrl}/api/v1/notifications/${notificationUuid}`;
 
         const startedAt = performance.now();
@@ -61,7 +61,11 @@ class NotificationsClient {
             console.log(`${requestId} - Failed to retrieve notification from notifier. Response body: ${JSON.stringify(data)}`);
         }
 
-        return { success, data };
+        return {
+            success: response.status === 200,
+            status: response.status,
+            data
+        };
     }
 
     async getNotifications(query, requestId) {
