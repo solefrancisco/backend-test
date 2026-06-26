@@ -97,13 +97,14 @@ class NotificationService {
         if (!response.success)
             throw new InternalServerError('Failed to find notification: ' + response.errorMessage);
 
-        if (!response.data)
+        if (!response.data.length)
             throw new NotFoundError(`Notification uuid ${uuid} not found`);
 
-        response.data = {
-            ...response.data,
-            data: JSON.parse(aesDecrypt(response.data.data))
-        };
+        response.data = response.data.map(notification => ({
+            ...notification,
+            data: JSON.parse(aesDecrypt(notification.data))
+        }));
+
         return response.data;
     }
 }
