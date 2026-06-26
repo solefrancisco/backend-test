@@ -226,7 +226,7 @@ class AppointmentsService {
         const actualStatus = appointmentInformation.status;
         const actualStartsAt = appointmentInformation.starts_at;
         const actualEndsAt = appointmentInformation.ends_at;
-
+        
         if (actualStartsAt === data.starts_at)
             throw new BadRequestError('The new start time must be different from the current one');
 
@@ -246,11 +246,13 @@ class AppointmentsService {
         }
 
         const checkAvailabilityResult = await this.appointmentsRepository.checkAvailability(checkData);
-        if (!checkAvailabilityResult.success)
+        if (!checkAvailabilityResult.success){
             throw new InternalServerError('Failed to check availability for rescheduling: ' + checkAvailabilityResult.errorMessage);
-
-        if (checkAvailabilityResult.data)
+        }
+        
+        if (checkAvailabilityResult.data){
             throw new ConflictError('The request conflicts with an existing appointment (ID: ' + checkAvailabilityResult.data.id + ')');
+        }
 
         const metadata = {
             previous_starts_at: actualStartsAt,
@@ -428,6 +430,7 @@ class AppointmentsService {
 
         if (webhookPayload.length > 0) {
             notificationsToQueue.push(...webhookPayload);
+            notificationsToQueue[0].metadata = webhookPayload[0].metadata
         }
 
         try {

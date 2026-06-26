@@ -377,6 +377,7 @@ class MySqlAppointmentsRepository {
         query,
         values
       );
+      
       return { success: true, data: rows[0] ?? null };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };

@@ -11,7 +11,7 @@ class NotificationsClient {
         const toUrl = `${this.baseUrl}/api/v1/notifications`;
 
         if (notificationStrategy.notify_by === 'email') {
-            payload = this.notificationsAdapter.generateEmailNotification(payload, appointmentId, notificationStrategy.notification_type);
+            payload = this.notificationsAdapter.generateEmailNotification(payload, appointmentId, notificationStrategy);
         } else if (notificationStrategy.notify_by === 'webhook') {
             payload = this.notificationsAdapter.generateWebhookNotification(payload, appointmentId, notificationStrategy, requestId);
         }
