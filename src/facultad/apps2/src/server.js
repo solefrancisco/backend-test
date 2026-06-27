@@ -9,6 +9,10 @@ async function startServer() {
         process.exit(0);
     }
 
+    if (env.environment === 'production') {
+        console.log('Running in production mode. All database operations will be mirrored to test database...');
+    }
+
     const dependencies = buildDependencies();
     const app = createApp(dependencies);
     const port = env.port;

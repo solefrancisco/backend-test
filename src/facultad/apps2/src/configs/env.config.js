@@ -39,9 +39,56 @@ function getNumber(name) {
   return value;
 }
 
+function getOptional(name) {
+  return process.env[name];
+}
+
+function getOptionalNumber(name) {
+  const rawValue = getOptional(name);
+
+  if (!rawValue) {
+    return undefined;
+  }
+
+  const value = Number(rawValue);
+
+  if (isNaN(value)) {
+    throw new Error(`Environment variable ${name} must be a valid number`);
+  }
+
+  return value;
+}
+
+function getRequiredInProduction(name) {
+  const environment = getRequired('APPS2_ENVIRONMENT');
+
+  if (environment !== 'production') {
+    return getOptional(name);
+  }
+
+  return getRequired(name);
+}
+
+function getRequiredNumberInProduction(name) {
+  const value = getRequiredInProduction(name);
+
+  if (!value) {
+    return undefined;
+  }
+
+  const parsedValue = Number(value);
+
+  if (isNaN(parsedValue)) {
+    throw new Error(`Environment variable ${name} must be a valid number`);
+  }
+
+  return parsedValue;
+}
+
 module.exports = {
   env: {
     // APP
+    environment: getRequired('APPS2_ENVIRONMENT'), // development, production, test
     port: getNumber('PORT'),
 
     // DATABASE
@@ -54,6 +101,15 @@ module.exports = {
     dbConnectionLimit: getNumber('APPS2_DB_CONNECTION_LIMIT'),
     dbQueueLimit: getNumber('APPS2_DB_QUEUE_LIMIT'),
     dbWaitForConnections: getBoolean('APPS2_DB_WAIT_FOR_CONNECTIONS'),
+
+    // TEST DATABASE MIRROR
+    testDbHost: getRequiredInProduction('APPS2_TEST_DB_HOST'),
+    testDbPort: getRequiredNumberInProduction('APPS2_TEST_DB_PORT'),
+    testDbUser: getRequiredInProduction('APPS2_TEST_DB_USER'),
+    testDbPassword: getRequiredInProduction('APPS2_TEST_DB_PASSWORD'),
+    testDbName: getRequiredInProduction('APPS2_TEST_DB_NAME'),
+    testDbConnectionLimit: getOptionalNumber('APPS2_TEST_DB_CONNECTION_LIMIT'),
+    testDbQueueLimit: getOptionalNumber('APPS2_TEST_DB_QUEUE_LIMIT'),
 
     // PAGINATION
     paginationDefaultPageSize: getNumber('APPS2_PAGINATION_DEFAULT_PAGE_SIZE'),

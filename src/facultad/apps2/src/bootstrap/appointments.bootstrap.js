@@ -74,9 +74,9 @@ function buildAppointmentsRepository() {
 }
 
 function buildMySqlRepository() {
-    const { dbPool } = require('@apps2/configs/database.config');
+    const { dbPool, testDbPool } = require('@apps2/configs/database.config');
     const { MySqlAppointmentsRepository } = require('@apps2/repositories/appointments.repository');
-    return new MySqlAppointmentsRepository(dbPool);
+    return new MySqlAppointmentsRepository(dbPool, testDbPool);
 }
 
 module.exports = { 

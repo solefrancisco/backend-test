@@ -1,7 +1,84 @@
 class MySqlAppointmentsRepository {
-  constructor(pool) {
+  constructor(pool, mirrorPool = null) {
     this.pool = pool;
+    this.mirrorPool = mirrorPool;
     this.buenosAiresNow = "NOW() - INTERVAL 3 HOUR";
+  }
+
+  async mirrorQuery(query, values = []) {
+    if (!this.mirrorPool) {
+      return;
+    }
+
+    try {
+      await this.mirrorPool.query(query, values);
+    } catch (error) {
+      console.error('Failed to mirror production data into test database:', error.message);
+    }
+  }
+
+  async mirrorCreatedAppointment(prodId, data) {
+    await this.mirrorQuery(
+      `
+        INSERT INTO appointments (
+          prod_id,
+          medic_id,
+          patient_id,
+          center_id,
+          speciality_id,
+          starts_at,
+          ends_at,
+          status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING_CONFIRMATION')
+      `,
+      [
+        prodId,
+        data.medic.id,
+        data.patient.id,
+        data.appointment.center_id,
+        data.appointment.speciality_id,
+        data.appointment.starts_at,
+        data.appointment.ends_at
+      ]
+    );
+  }
+
+  async mirrorAppointmentUpdate(prodId, setSql, values = [], whereSql = '') {
+    await this.mirrorQuery(
+      `
+        UPDATE appointments
+        SET ${setSql}
+        WHERE prod_id = ?
+          ${whereSql}
+      `,
+      [...values, prodId]
+    );
+  }
+
+  async mirrorNotificationInsert(appointmentProdId, notificationUuid, reason) {
+    await this.mirrorQuery(
+      `
+        INSERT INTO appointments_notifications (id, notification_uuid, reason)
+        SELECT id, ?, ?
+        FROM appointments
+        WHERE prod_id = ?
+        LIMIT 1
+      `,
+      [notificationUuid, reason, appointmentProdId]
+    );
+  }
+
+  async mirrorNotificationDelete(appointmentProdId) {
+    await this.mirrorQuery(
+      `
+        DELETE appointments_notifications
+        FROM appointments_notifications
+        INNER JOIN appointments ON appointments_notifications.id = appointments.id
+        WHERE appointments.prod_id = ?
+      `,
+      [appointmentProdId]
+    );
   }
 
   async filter(queryFilters, query) {
@@ -54,7 +131,10 @@ class MySqlAppointmentsRepository {
           data.appointment.center_id, data.appointment.speciality_id, data.appointment.starts_at, data.appointment.ends_at
         ]
       );
-      return { success: true, data: result[0][0].appointment_id };
+      const appointmentId = result[0][0].appointment_id;
+      await this.mirrorCreatedAppointment(appointmentId, data);
+
+      return { success: true, data: appointmentId };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
     }
@@ -165,6 +245,18 @@ class MySqlAppointmentsRepository {
         [appointmentId]
       );
 
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `
+            status = 'CONFIRMED',
+            confirmed_at = ${this.buenosAiresNow}
+          `,
+          [],
+          "AND status = 'PENDING_CONFIRMATION'"
+        );
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
@@ -184,6 +276,18 @@ class MySqlAppointmentsRepository {
         `,
         [appointmentId]
       );
+
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `
+            status = 'CHECKED_IN',
+            checked_in_at = ${this.buenosAiresNow}
+          `,
+          [],
+          "AND status = 'CONFIRMED'"
+        );
+      }
 
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };  
     } catch (error) {
@@ -205,6 +309,18 @@ class MySqlAppointmentsRepository {
         [appointmentId]
       );
 
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `
+            status = 'IN_PROGRESS',
+            started_at = ${this.buenosAiresNow}
+          `,
+          [],
+          "AND status = 'CHECKED_IN'"
+        );
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
@@ -225,6 +341,18 @@ class MySqlAppointmentsRepository {
         [appointmentId]
       );
 
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `
+            status = 'COMPLETED',
+            completed_at = ${this.buenosAiresNow}
+          `,
+          [],
+          "AND status = 'IN_PROGRESS'"
+        );
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
@@ -244,6 +372,18 @@ class MySqlAppointmentsRepository {
         `,
         [appointmentId]
       );
+
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `
+            status = 'CANCELLED',
+            cancelled_at = ${this.buenosAiresNow}
+          `,
+          [],
+          "AND status IN ('PENDING_CONFIRMATION', 'CONFIRMED')"
+        );
+      }
 
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
@@ -283,6 +423,18 @@ class MySqlAppointmentsRepository {
         [appointmentId]
       );
 
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `
+            status = 'EXPIRED',
+            expired_at = ${this.buenosAiresNow}
+          `,
+          [],
+          "AND status = 'PENDING_CONFIRMATION'"
+        );
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
@@ -319,6 +471,15 @@ class MySqlAppointmentsRepository {
         `,
         [appointmentId]
       );
+
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `reminded_at = ${this.buenosAiresNow}`,
+          [],
+          "AND status IN ('PENDING_CONFIRMATION', 'CONFIRMED')"
+        );
+      }
 
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
@@ -359,6 +520,18 @@ class MySqlAppointmentsRepository {
         [appointmentId]
       );
 
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          `
+            status = 'ABSENT',
+            absent_at = ${this.buenosAiresNow}
+          `,
+          [],
+          "AND status = 'CONFIRMED'"
+        );
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
@@ -398,6 +571,19 @@ class MySqlAppointmentsRepository {
         `,
         [data.starts_at, data.ends_at, id]
       );
+
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          id,
+          `
+            starts_at = ?,
+            ends_at = ?,
+            status = 'PENDING_CONFIRMATION'
+          `,
+          [data.starts_at, data.ends_at],
+          "AND status IN ('PENDING_CONFIRMATION', 'CONFIRMED')"
+        );
+      }
 
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
@@ -452,6 +638,16 @@ class MySqlAppointmentsRepository {
         [appointmentId]
       );
 
+      if (result.affectedRows > 0) {
+        await this.mirrorQuery(
+          `
+            DELETE FROM appointments
+            WHERE prod_id = ?
+          `,
+          [appointmentId]
+        );
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
@@ -467,6 +663,10 @@ class MySqlAppointmentsRepository {
         `,
         [appointmentId]
       );
+
+      if (result.affectedRows > 0) {
+        await this.mirrorNotificationDelete(appointmentId);
+      }
 
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
@@ -485,6 +685,14 @@ class MySqlAppointmentsRepository {
         [originalStatus, appointmentId]
       );
 
+      if (result.affectedRows > 0) {
+        await this.mirrorAppointmentUpdate(
+          appointmentId,
+          'status = ?',
+          [originalStatus]
+        );
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
@@ -500,6 +708,10 @@ class MySqlAppointmentsRepository {
         `,
         [appointmentId, notificationUuid, reason]
       );
+      if (result.affectedRows > 0) {
+        await this.mirrorNotificationInsert(appointmentId, notificationUuid, reason);
+      }
+
       return { success: true, data: { affectedRows: result.affectedRows > 0 } };
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
