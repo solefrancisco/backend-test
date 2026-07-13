@@ -6,6 +6,7 @@ const { AppointmentsRouter } = require('@apps2/routes/appointments.route');
 const { SpecialitiesRouter } = require('@apps2/routes/specialities.route');
 const { MedicalCentersRouter } = require('@apps2/routes/medical-centers.route');
 const { NotificationsRouter } = require('@apps2/routes/notifications.route');
+const { AuthRouter } = require('@apps2/routes/auth.route');
 
 function createApp(dependencies) {
     const app = express();
@@ -28,16 +29,30 @@ function createApp(dependencies) {
 }
 
 function bootstrapAppControllers(app, dependencies) {
+    if (dependencies.authController) {
+        app.use(
+            '/api/v1/auth',
+            AuthRouter(dependencies.authController)
+        );
+    }
+
+    const apiMiddlewares = [
+        dependencies.apiKeyMiddleware,
+        dependencies.authMiddleware,
+    ].filter(Boolean);
+
     if (dependencies.appointmentsController) {
         app.use(
-            '/api/v1/appointments', 
+            '/api/v1/appointments',
+            ...apiMiddlewares,
             AppointmentsRouter(dependencies.appointmentsController)
         );
     }
 
     if (dependencies.specialitiesController) {
         app.use(
-            '/api/v1/specialities', 
+            '/api/v1/specialities',
+            ...apiMiddlewares,
             SpecialitiesRouter(dependencies.specialitiesController)
         );
     }
@@ -45,6 +60,7 @@ function bootstrapAppControllers(app, dependencies) {
     if (dependencies.medicalCentersController) {
         app.use(
             '/api/v1/medical-centers',
+            ...apiMiddlewares,
             MedicalCentersRouter(dependencies.medicalCentersController)
         );
     }
@@ -52,6 +68,7 @@ function bootstrapAppControllers(app, dependencies) {
     if (dependencies.notificationsController) {
         app.use(
             '/api/v1/notifications',
+            ...apiMiddlewares,
             NotificationsRouter(dependencies.notificationsController)
         );
     }

@@ -7,6 +7,7 @@ const { buildNotificationsClient } = require('@apps2/bootstrap/notifications.boo
 const { AppointmentExpirationJob } = require('@apps2/jobs/appointment-expiration.job');
 const { AppointmentReminderJob } = require('@apps2/jobs/appointment-reminder.job');
 const { AppointmentAbsenceJob } = require('@apps2/jobs/appointment-absence.job');
+const { buildCoreClient } = require('@apps2/bootstrap/core.bootstrap');
 
 // just for mocking purposes, to avoid circular dependencies
 function mockRequiredDependencies() {
@@ -21,7 +22,7 @@ function mockRequiredDependencies() {
     } 
     return {};
 }
-function buildAppointmentsService() {
+function buildAppointmentsService(coreClient = buildCoreClient()) {
     const dependencies = mockRequiredDependencies();
     
     return new AppointmentsService(
@@ -29,40 +30,42 @@ function buildAppointmentsService() {
         new AppointmentsUtils(), 
         buildNotificationsClient(), 
         dependencies.specialitiesService,
-        dependencies.medicalCentersService
+        dependencies.medicalCentersService,
+        coreClient
     );
 }
 
-function buildAppointmentsController() {
+function buildAppointmentsController(coreClient = buildCoreClient()) {
     const dependencies = mockRequiredDependencies();
     const appointmentsService = new AppointmentsService(
         buildAppointmentsRepository(),
         new AppointmentsUtils(), 
         buildNotificationsClient(),
         dependencies.specialitiesService,
-        dependencies.medicalCentersService
+        dependencies.medicalCentersService,
+        coreClient
     );
     return new AppointmentsController(appointmentsService);
 }
 
-function buildAppointmentExpirationJob() {
-    const appointmentsService = buildAppointmentsService();
+function buildAppointmentExpirationJob(coreClient = buildCoreClient()) {
+    const appointmentsService = buildAppointmentsService(coreClient);
 
     return new AppointmentExpirationJob(appointmentsService, {
         intervalMs: env.appointmentsExpirationIntervalMs,
     });
 }
 
-function buildAppointmentReminderJob() {
-    const appointmentsService = buildAppointmentsService();
+function buildAppointmentReminderJob(coreClient = buildCoreClient()) {
+    const appointmentsService = buildAppointmentsService(coreClient);
 
     return new AppointmentReminderJob(appointmentsService, {
         intervalMs: env.appointmentsReminderIntervalMs,
     });
 }
 
-function buildAppointmentAbsenceJob() {
-    const appointmentsService = buildAppointmentsService();
+function buildAppointmentAbsenceJob(coreClient = buildCoreClient()) {
+    const appointmentsService = buildAppointmentsService(coreClient);
 
     return new AppointmentAbsenceJob(appointmentsService, {
         intervalMs: env.appointmentsAbsenceIntervalMs,

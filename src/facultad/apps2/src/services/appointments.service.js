@@ -6,12 +6,15 @@ const { InternalServerError } = require('@apps2/errors/internal-server.error');
 const { ConflictError } = require('@apps2/errors/conflict.error');
 const { paginationConfig } = require('@apps2/configs/pagination.config');
 const { mockConfig } = require('@apps2/configs/mock.config');
+const { coreConfig } = require('@apps2/configs/core.config');
+const { buildAppointmentCoreEvents } = require('@apps2/integrations/core/appointments-core-events.adapter');
 
 class AppointmentsService {
-    constructor(appointmentsRepository, appointmentsUtils, notificationsClient, specialitiesService, medicalCentersService) {
+    constructor(appointmentsRepository, appointmentsUtils, notificationsClient, specialitiesService, medicalCentersService, coreClient = null) {
         this.appointmentsRepository = appointmentsRepository;
         this.appointmentsUtils = appointmentsUtils;
         this.notificationsClient = notificationsClient;
+        this.coreClient = coreClient;
 
         // just for mocking purposes, to avoid circular dependencies
         this.specialitiesService = specialitiesService;
@@ -23,6 +26,11 @@ class AppointmentsService {
             // if mocking is enabled, we check in our database to avoid creating appointments with non existing data
             await this.specialitiesService.getSpecialityById(data.appointment.speciality_id);
             await this.medicalCentersService.getMedicalCentersById(data.appointment.center_id);
+        } else {
+            await this.validateCoreUserRole(data.patient.id, ['patient', 'pacient', 'paciente'], 'patient');
+            await this.validateCoreUserRole(data.medic.id, ['medic', 'medico'], 'medic');
+            const speciality = await this.getCoreSpecialityForAppointment(data.appointment.speciality_id);
+            data.appointment.speciality_name = speciality.name;
         }
 
         const result = await this.appointmentsRepository.create(data);
@@ -67,6 +75,78 @@ class AppointmentsService {
         const notificationId = queued.requestId;
         return { appointment_id: appointmentId, notification_id: notificationId };
     } 
+
+    async getCoreSpecialityForAppointment(specialityId) {
+        if (!this.coreClient) {
+            throw new InternalServerError('Core client is required to retrieve speciality data when mocked data is disabled');
+        }
+
+        const response = await this.coreClient.getSpecialityById(specialityId);
+        if (!response.success) {
+            if (response.status === 404) {
+                throw new BadRequestError(`speciality_id ${specialityId} was not found in Core`);
+            }
+
+            throw new InternalServerError(`Failed to retrieve speciality ${specialityId} from Core. Status: ${response.status}`);
+        }
+
+        const speciality = this.normalizeCoreSpeciality(response.data);
+        if (!speciality || !speciality.name) {
+            throw new InternalServerError(`Core speciality ${specialityId} response does not include a name`);
+        }
+
+        return speciality;
+    }
+
+    async validateCoreUserRole(userId, acceptedRoles, fieldName) {
+        if (!this.coreClient) {
+            throw new InternalServerError('Core client is required to retrieve user data when mocked data is disabled');
+        }
+
+        const response = await this.coreClient.getUserById(userId);
+        if (!response.success) {
+            throw new BadRequestError(`${fieldName}.id ${userId} does not exist in Core`);
+        }
+
+        const user = this.normalizeCoreUser(response.data);
+        const roles = this.getCoreUserRoles(user);
+        const hasRequiredRole = roles.some(role => acceptedRoles.includes(this.normalizeRoleName(role)));
+
+        if (!hasRequiredRole) {
+            throw new BadRequestError(`${fieldName}.id ${userId} does not have a valid ${fieldName} role`);
+        }
+    }
+
+    normalizeCoreUser(data) {
+        return data?.data?.user || data?.data || data?.user || data;
+    }
+
+    getCoreUserRoles(user) {
+        const roles = user?.roles || user?.role || [];
+        const normalizedRoles = Array.isArray(roles) ? roles : [roles];
+
+        return normalizedRoles
+            .map(role => {
+                if (typeof role === 'string') {
+                    return role;
+                }
+
+                return role?.name || role?.role_name || role?.description || '';
+            })
+            .filter(Boolean);
+    }
+
+    normalizeRoleName(role) {
+        return role
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z]/g, '');
+    }
+
+    normalizeCoreSpeciality(data) {
+        return data?.data?.speciality || data?.data || data?.speciality || data;
+    }
 
     async findOccupiedAppointments(query) {
         const result = await this.appointmentsRepository.findOccupiedAppointments(query);
@@ -157,15 +237,39 @@ class AppointmentsService {
             throw new BadRequestError('Cannot check-in more than 1 hour before the scheduled time');
         */
        
-        let webhookPayload = await this.checkIfWebhookRequired(id, appointmentInformation.speciality.id, "check-in", {patient_id: appointmentInformation.patient.id, medic_id: appointmentInformation.medic.id});
+        let webhookPayload = await this.checkIfWebhookRequired(id, this.getAppointmentSpeciality(appointmentInformation), "check-in", {
+            patient_id: this.getAppointmentPatientId(appointmentInformation),
+            medic_id: this.getAppointmentMedicId(appointmentInformation)
+        });
         return await this.updateAppointmentStatusAndNotify(id, perform, null, actualStatus, webhookPayload);
     }
 
-    async checkIfWebhookRequired(appointmentId, appointmentSpecialityId, reason, metadata = {}){
+    async checkIfWebhookRequired(appointmentId, appointmentSpeciality, reason, metadata = {}){
         let webhookPayload = [];
 
+        if (mockConfig.enabled) {
+            return webhookPayload;
+        }
+
+        if (reason === "check-in") {
+            webhookPayload.push({
+                notify_by: 'webhook',
+                notification_type: 'webhookCheckIn',
+                appointmentId: appointmentId,
+                metadata: metadata,
+                reason: 'El paciente hizo checkin',
+            });
+
+            return webhookPayload;
+        }
+
         if (["cancelado", "reprogramado", "expirado", "ausente"].includes(reason)) {
-            const speciality = await this.specialitiesService.getSpecialityById(appointmentSpecialityId);
+            const speciality = await this.getWebhookSpeciality(appointmentSpeciality);
+
+            if (!speciality) {
+                return webhookPayload;
+            }
+
             const isSurgery = speciality.type === "SURGERY";
             const isHighComplexity = speciality.is_high_complexity;
             const finalReason = reason === "ausente" ? "no se llevo a cabo porque el paciente no asistió" : reason;
@@ -189,18 +293,43 @@ class AppointmentsService {
                     reason: 'Turno de alta complejidad ' + finalReason,
                 });
             }
-        } else if (reason === "check-in") {
-            webhookPayload.push({
-                notify_by: 'webhook',
-                notification_type: 'webhookCheckIn',
-                appointmentId: appointmentId,
-                metadata: metadata,
-                reason: 'El paciente hizo checkin',
-            });
         }
 
         return webhookPayload;
     }
+
+    async getWebhookSpeciality(appointmentSpeciality) {
+        if (!appointmentSpeciality) {
+            return null;
+        }
+
+        if (typeof appointmentSpeciality === 'object') {
+            return appointmentSpeciality;
+        }
+
+        if (!this.specialitiesService) {
+            return null;
+        }
+
+        return await this.specialitiesService.getSpecialityById(appointmentSpeciality);
+    }
+
+    getAppointmentSpeciality(appointment) {
+        return appointment.speciality ?? appointment.speciality_id;
+    }
+
+    getAppointmentPatientId(appointment) {
+        return appointment.patient?.id ?? appointment.patient_id;
+    }
+
+    getAppointmentMedicId(appointment) {
+        return appointment.medic?.id ?? appointment.medic_id;
+    }
+
+    getAppointmentCenterId(appointment) {
+        return appointment.medical_center?.id ?? appointment.center_id;
+    }
+
     async cancelAppointment(id) {
         const appointment = await this.getAppointmentById(id);
         const actualStatus = appointment.status;
@@ -211,7 +340,7 @@ class AppointmentsService {
             repositoryFunction: (id) => this.appointmentsRepository.cancel(id),
         };
 
-        let webhookPayload = await this.checkIfWebhookRequired(id, appointment.speciality.id, "cancelado");
+        let webhookPayload = await this.checkIfWebhookRequired(id, this.getAppointmentSpeciality(appointment), "cancelado");
         return await this.updateAppointmentStatusAndNotify(id, perform, null, actualStatus, webhookPayload);
     }
 
@@ -233,9 +362,9 @@ class AppointmentsService {
         if (actualEndsAt === data.ends_at)
             throw new BadRequestError('The new end time must be different from the current one');
 
-        const centerId = appointmentInformation.medical_center.id;
-        const medicId = appointmentInformation.medic.id;
-        const patientId = appointmentInformation.patient.id;
+        const centerId = this.getAppointmentCenterId(appointmentInformation);
+        const medicId = this.getAppointmentMedicId(appointmentInformation);
+        const patientId = this.getAppointmentPatientId(appointmentInformation);
 
         const checkData = {
             center_id: centerId,
@@ -261,7 +390,7 @@ class AppointmentsService {
             new_ends_at: data.ends_at
         }
 
-        let webhookPayload = await this.checkIfWebhookRequired(id, appointmentInformation.speciality.id, "reprogramado", metadata);
+        let webhookPayload = await this.checkIfWebhookRequired(id, this.getAppointmentSpeciality(appointmentInformation), "reprogramado", metadata);
         return await this.updateAppointmentStatusAndNotify(id, perform, data, actualStatus, webhookPayload);
     }
 
@@ -308,7 +437,7 @@ class AppointmentsService {
             };
 
             try{
-                let webhookPayload = await this.checkIfWebhookRequired(id, appointment.speciality.id, "expirado");
+                let webhookPayload = await this.checkIfWebhookRequired(id, this.getAppointmentSpeciality(appointment), "expirado");
                 await this.updateAppointmentStatusAndNotify(id, perform, null, null, webhookPayload);
             } catch (error) {
                 continue; // continue with the next appointment, we don't want one failure to stop the whole expiration process
@@ -363,7 +492,7 @@ class AppointmentsService {
             };
 
             try{
-                let webhookPayload = await this.checkIfWebhookRequired(id, appointment.speciality.id, "ausente");
+                let webhookPayload = await this.checkIfWebhookRequired(id, this.getAppointmentSpeciality(appointment), "ausente");
                 await this.updateAppointmentStatusAndNotify(id, perform, null, null, webhookPayload);
             } catch (error) {
                 continue; // continue with the next appointment, we don't want one failure to stop the whole expiration process
@@ -434,6 +563,7 @@ class AppointmentsService {
         }
 
         try {
+            await this.publishCoreWebhookEvents(id, webhookPayload, requestId);
             const queuePromises = notificationsToQueue.map(notification => this.queueNotificationForAppointment(id, originalNotificationData, notification, requestId));
             const results = await Promise.all(queuePromises);
             return { success: true, requestId };
@@ -441,6 +571,23 @@ class AppointmentsService {
             console.error(`Failed to queue notifications for appointment id ${id}:`, error);
             // Atajamos cualquier error de infraestructura inesperado
             return { success: false, requestId };
+        }
+    }
+
+    async publishCoreWebhookEvents(appointmentId, webhookPayload, requestId) {
+        if (mockConfig.enabled || !this.coreClient || webhookPayload.length === 0) {
+            return;
+        }
+
+        const events = buildAppointmentCoreEvents(appointmentId, webhookPayload, requestId);
+
+        for (const event of events) {
+            const eventTypeId = coreConfig.eventTypeIds[event.eventName];
+            const result = await this.coreClient.publishEvent(eventTypeId, event.payload, requestId);
+
+            if (!result.success) {
+                throw new InternalServerError(`Failed to publish Core event ${event.eventName}. Status: ${result.status}`);
+            }
         }
     }
 

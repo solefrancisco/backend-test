@@ -13,15 +13,16 @@ function getDefaultNotificationTemplate(data, appointmentId, notificationTemplat
         : data;
 
     const notificationData = notificationItem?.data || notificationItem;
+    const appointmentData = notificationData.appointment;
 
     return {
         notify_by: 'email',
         notification_type: notificationTemplate,
         appointment: {
             id: appointmentId,
-            starts_at: notificationData.appointment.starts_at,
-            speciality_name: notificationData.appointment.speciality_name,
-            medical_center_name: notificationData.appointment.medical_center_name,
+            starts_at: appointmentData.starts_at,
+            speciality_name: appointmentData.speciality_name || `Especialidad ${appointmentData.speciality_id}`,
+            medical_center_name: appointmentData.medical_center_name || `Centro medico ${appointmentData.center_id}`,
         },
         patient: {
             fullname: notificationData.patient.fullname,
