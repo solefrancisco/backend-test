@@ -192,8 +192,8 @@ module.exports = {
     // Core
     coreEnabled: getOptionalBoolean('APPS2_CORE_ENABLED', true),
     coreBaseUrl: getOptional('APPS2_CORE_BASE_URL') || 'https://gw.healthcare.cantero.ar/api/core',
-    coreEmail: getOptional('APPS2_CORE_EMAIL'),
-    corePassword: getOptional('APPS2_CORE_PASSWORD'),
+    coreEmail: getFirstOptional('APPS2_CORE_EMAIL', 'CORE_EMAIL'),
+    corePassword: getFirstOptional('APPS2_CORE_PASSWORD', 'CORE_PASSWORD'),
     corePublisherModule: getOptional('APPS2_CORE_PUBLISHER_MODULE') || 'appointments',
     coreSsoRedirectFallback: getOptional('APPS2_CORE_SSO_REDIRECT_FALLBACK') || '/',
     coreEventModule1CheckInId: getOptionalNumber('APPS2_CORE_EVENT_MODULE1_CHECK_IN_ID'),
@@ -213,8 +213,8 @@ module.exports = {
     rabbitUrl: getFirstOptional('APPS2_RABBITMQ_URL', 'RABBITMQ_URL'),
     rabbitHost: getFirstOptional('APPS2_RABBITMQ_HOST', 'RABBITMQ_HOST') || 'queue.healthgrid.cantero.ar',
     rabbitPort: getFirstOptionalNumber('APPS2_RABBITMQ_PORT', 'RABBITMQ_PORT') || 5672,
-    rabbitUser: getFirstOptional('APPS2_CORE_EMAIL', 'RABBITMQ_USER'),
-    rabbitPassword: getFirstOptional('APPS2_CORE_PASSWORD', 'RABBITMQ_PASSWORD'),
+    rabbitUser: getFirstOptional('APPS2_CORE_EMAIL', 'CORE_EMAIL', 'RABBITMQ_USER'),
+    rabbitPassword: getFirstOptional('APPS2_CORE_PASSWORD', 'CORE_PASSWORD', 'RABBITMQ_PASSWORD'),
     rabbitVhost: getFirstOptional('APPS2_RABBITMQ_VHOST', 'RABBITMQ_VHOST') || '/',
     rabbitAppointmentsRequestsQueue: getOptionalWithDefault('APPS2_RABBITMQ_APPOINTMENTS_REQUESTS_QUEUE', 'appointments.requests'),
   }
