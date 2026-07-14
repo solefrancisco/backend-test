@@ -7,6 +7,7 @@ const { SpecialitiesRouter } = require('@apps2/routes/specialities.route');
 const { MedicalCentersRouter } = require('@apps2/routes/medical-centers.route');
 const { NotificationsRouter } = require('@apps2/routes/notifications.route');
 const { AuthRouter } = require('@apps2/routes/auth.route');
+const { MedicsRouter } = require('@apps2/routes/medics.route');
 
 function createApp(dependencies) {
     const app = express();
@@ -62,6 +63,14 @@ function bootstrapAppControllers(app, dependencies) {
             '/api/v1/medical-centers',
             ...apiMiddlewares,
             MedicalCentersRouter(dependencies.medicalCentersController)
+        );
+    }
+
+    if (dependencies.medicsController) {
+        app.use(
+            '/api/v1/medics',
+            ...apiMiddlewares,
+            MedicsRouter(dependencies.medicsController)
         );
     }
 

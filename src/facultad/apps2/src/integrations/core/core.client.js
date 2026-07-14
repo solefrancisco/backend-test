@@ -5,6 +5,7 @@ class CoreClient {
         this.config = config;
         this.accessToken = null;
         this.accessTokenExpiresAt = 0;
+        this.accessTokenPromise = null;
         this.jwks = null;
         this.jwksExpiresAt = 0;
     }
@@ -130,6 +131,10 @@ class CoreClient {
 
     async getAuthenticatedJson(path, token, requestId) {
         const url = `${this.config.baseUrl}${path}`;
+        return await this.getAuthenticatedJsonUrl(url, token, requestId);
+    }
+
+    async getAuthenticatedJsonUrl(url, token, requestId) {
         const response = await this.fetchCore('GET', url, {
             method: 'GET',
             headers: {
@@ -151,10 +156,25 @@ class CoreClient {
             return this.accessToken;
         }
 
+        if (this.accessTokenPromise) {
+            console.log('[CORE] Waiting for in-flight access token request');
+            return await this.accessTokenPromise;
+        }
+
         if (!this.config.email || !this.config.password) {
             throw new Error('Missing Core credentials');
         }
 
+        this.accessTokenPromise = this.requestAccessToken();
+
+        try {
+            return await this.accessTokenPromise;
+        } finally {
+            this.accessTokenPromise = null;
+        }
+    }
+
+    async requestAccessToken() {
         const url = 'https://gw.healthcare.cantero.ar/api/auth/login';
         const response = await this.fetchCore('POST', url, {
             method: 'POST',
@@ -191,6 +211,7 @@ class CoreClient {
         }
         this.accessToken = null;
         this.accessTokenExpiresAt = 0;
+        this.accessTokenPromise = null;
     }
 
     async findJwk(kid) {
@@ -246,7 +267,12 @@ class CoreClient {
             return {};
         }
 
-        return JSON.parse(text);
+        try {
+            return JSON.parse(text);
+        } catch (error) {
+            console.warn(`[CORE] Response body is not valid JSON. status=${response.status} body="${this.truncateForLog(text)}"`);
+            return { raw: text };
+        }
     }
 
     async fetchCore(method, url, options, context = {}) {
@@ -299,6 +325,16 @@ class CoreClient {
         }
 
         return `${name.slice(0, 2)}***@${domain}`;
+    }
+
+    truncateForLog(value, maxLength = 200) {
+        const normalizedValue = String(value).replace(/\s+/g, ' ').trim();
+
+        if (normalizedValue.length <= maxLength) {
+            return normalizedValue;
+        }
+
+        return `${normalizedValue.slice(0, maxLength)}...`;
     }
 }
 

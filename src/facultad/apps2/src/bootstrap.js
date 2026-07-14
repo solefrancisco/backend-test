@@ -7,6 +7,7 @@ const {
  } = require('@apps2/bootstrap/appointments.bootstrap');
 const { buildSpecialitiesController } = require('@apps2/bootstrap/specialities.bootstrap');
 const { buildMedicalCentersController } = require('@apps2/bootstrap/medical-centers.bootstrap');
+const { buildMedicsController } = require('@apps2/bootstrap/medics.bootstrap');
 const { buildNotificationsClient, buildNotificationsController } = require('@apps2/bootstrap/notifications.bootstrap');
 const { buildCoreClient, buildAuthController, buildAuthMiddleware } = require('@apps2/bootstrap/core.bootstrap');
 const { env } = require('@apps2/configs/env.config');
@@ -40,6 +41,10 @@ function buildDependencies() {
 
     if (env.medicalCentersEnabled) {
         dependencies.medicalCentersController = buildMedicalCentersController();
+    }
+
+    if (coreClient) {
+        dependencies.medicsController = buildMedicsController(coreClient);
     }
 
     if (env.notificationsEnabled) {
