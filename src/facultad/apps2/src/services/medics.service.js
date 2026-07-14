@@ -7,11 +7,9 @@ class MedicsService {
 
     getMedics(query = {}) {
         const specialityId = query.speciality_id;
-        const data = specialityId
+        return specialityId
             ? this.medicsCache.filter((medic) => medic.speciality_id === specialityId)
             : this.medicsCache;
-
-        return { data };
     }
 
     async refreshMedicsCache() {
@@ -77,6 +75,7 @@ class MedicsService {
         const speciality = Array.isArray(user.specialities) ? user.specialities[0] : null;
 
         return {
+            medic_id: user.id,
             fullname: [user.first_name, user.last_name].filter(Boolean).join(' '),
             email: user.email,
             speciality_id: speciality ? speciality.id : null,

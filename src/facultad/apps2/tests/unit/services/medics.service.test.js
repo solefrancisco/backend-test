@@ -3,10 +3,11 @@ const assert = require('node:assert/strict');
 
 const { MedicsService } = require('@apps2/services/medics.service');
 
-test('getMedics returns cached medics wrapped in data', () => {
+test('getMedics returns cached medics as a list', () => {
     const service = new MedicsService(null, []);
     service.medicsCache = [
         {
+            medic_id: 214,
             fullname: 'Valentina Molina',
             email: 'valentina@example.com',
             speciality_id: 67,
@@ -14,21 +15,21 @@ test('getMedics returns cached medics wrapped in data', () => {
         },
     ];
 
-    assert.deepEqual(service.getMedics(), {
-        data: service.medicsCache,
-    });
+    assert.deepEqual(service.getMedics(), service.medicsCache);
 });
 
 test('getMedics filters cached medics by speciality_id', () => {
     const service = new MedicsService(null, []);
     service.medicsCache = [
         {
+            medic_id: 214,
             fullname: 'Valentina Molina',
             email: 'valentina@example.com',
             speciality_id: 67,
             speciality_name: 'Cirugia Ginecologica',
         },
         {
+            medic_id: 85,
             fullname: 'Martin Perez',
             email: 'martin@example.com',
             speciality_id: 1,
@@ -36,9 +37,7 @@ test('getMedics filters cached medics by speciality_id', () => {
         },
     ];
 
-    assert.deepEqual(service.getMedics({ speciality_id: 67 }), {
-        data: [service.medicsCache[0]],
-    });
+    assert.deepEqual(service.getMedics({ speciality_id: 67 }), [service.medicsCache[0]]);
 });
 
 test('refreshMedicsCache fetches users from Core and maps them into cached medics', async () => {
@@ -53,6 +52,7 @@ test('refreshMedicsCache fetches users from Core and maps them into cached medic
                 success: true,
                 status: 200,
                 data: {
+                    id,
                     first_name: `Name${id}`,
                     last_name: `Last${id}`,
                     email: `medic${id}@example.com`,
@@ -73,12 +73,14 @@ test('refreshMedicsCache fetches users from Core and maps them into cached medic
     assert.deepEqual(requestedIds.sort((a, b) => a - b), [85, 86]);
     assert.deepEqual(cache, [
         {
+            medic_id: 85,
             fullname: 'Name85 Last85',
             email: 'medic85@example.com',
             speciality_id: 95,
             speciality_name: 'Speciality 85',
         },
         {
+            medic_id: 86,
             fullname: 'Name86 Last86',
             email: 'medic86@example.com',
             speciality_id: 96,
