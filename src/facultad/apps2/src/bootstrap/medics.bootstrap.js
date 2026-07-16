@@ -1,12 +1,24 @@
 const { MedicsController } = require('@apps2/controllers/medics.controller');
-const { medicUserIds } = require('@apps2/configs/medics.config');
 const { MedicsService } = require('@apps2/services/medics.service');
 
 function buildMedicsController(coreClient) {
-    const medicsService = new MedicsService(coreClient, medicUserIds);
+    const medicsService = new MedicsService(buildMedicsRepository(), coreClient, buildSpecialitiesService());
     startMedicsCacheRefresh(medicsService);
 
     return new MedicsController(medicsService);
+}
+
+function buildMedicsRepository() {
+    const { dbPool } = require('@apps2/configs/database.config');
+    const { MySqlMedicsRepository } = require('@apps2/repositories/medics.repository');
+    return new MySqlMedicsRepository(dbPool);
+}
+
+function buildSpecialitiesService() {
+    const { dbPool } = require('@apps2/configs/database.config');
+    const { MySqlSpecialitiesRepository } = require('@apps2/repositories/specialities.repository');
+    const { SpecialitiesService } = require('@apps2/services/specialities.service');
+    return new SpecialitiesService(new MySqlSpecialitiesRepository(dbPool));
 }
 
 function startMedicsCacheRefresh(medicsService) {

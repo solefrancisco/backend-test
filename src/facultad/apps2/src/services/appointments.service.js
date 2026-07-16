@@ -9,6 +9,13 @@ const { mockConfig } = require('@apps2/configs/mock.config');
 const { coreConfig } = require('@apps2/configs/core.config');
 const { buildAppointmentCoreEvents } = require('@apps2/integrations/core/appointments-core-events.adapter');
 
+const coreEventTypeEnvNames = {
+    module1CheckIn: 'APPS2_CORE_EVENT_MODULE1_CHECK_IN_ID',
+    module5HighComplexityCancelled: 'APPS2_CORE_EVENT_MODULE5_HIGH_COMPLEXITY_CANCELLED_ID',
+    module6SurgeryCancelled: 'APPS2_CORE_EVENT_MODULE6_SURGERY_CANCELLED_ID',
+    module6SurgeryRescheduled: 'APPS2_CORE_EVENT_MODULE6_SURGERY_RESCHEDULED_ID',
+};
+
 class AppointmentsService {
     constructor(appointmentsRepository, appointmentsUtils, notificationsClient, specialitiesService, medicalCentersService, coreClient = null) {
         this.appointmentsRepository = appointmentsRepository;
@@ -178,6 +185,8 @@ class AppointmentsService {
 
         if (mockConfig.enabled) {
             result = await this.mockData(result);
+        } else {
+            result.data = await this.enrichAppointments(result.data);
         }
 
         return {
@@ -191,21 +200,123 @@ class AppointmentsService {
     }
 
     async getAppointmentById(id) {
-        let response = await this.appointmentsRepository.findById(id);
+        const appointment = await this.findAppointmentById(id);
         
+        if (mockConfig.enabled) {
+            const result = { data: [appointment] }; // adapt to mockData format
+            const response = await this.mockData(result);
+            return response.data[0]; // extract the appointment data
+        }
+
+        return await this.enrichAppointment(appointment);
+    }
+
+    async findAppointmentById(id) {
+        const response = await this.appointmentsRepository.findById(id);
         if (!response.success)
             throw new InternalServerError('Failed to find appointment: ' + response.errorMessage);
 
         if (!response.data)
             throw new NotFoundError(`Appointment id ${id} not found`);
-        
-        if (mockConfig.enabled) {
-            const result = { data: [response.data] }; // adapt to mockData format
-            response = await this.mockData(result);
-            return response.data[0]; // extract the appointment data
-        }
 
         return response.data;
+    }
+
+    async enrichAppointments(appointments) {
+        return await Promise.all(appointments.map((appointment) => this.enrichAppointment(appointment)));
+    }
+
+    async enrichAppointment(appointment) {
+        const [patient, medic, coreSpeciality, localSpeciality, medicalCenter] = await Promise.all([
+            this.getCoreUserForAppointment(appointment.patient_id, 'patient'),
+            this.getCoreUserForAppointment(appointment.medic_id, 'medic'),
+            this.getCoreSpecialityForAppointment(appointment.speciality_id),
+            this.getLocalSpecialityForAppointment(appointment.speciality_id),
+            this.getMedicalCenterForAppointment(appointment.center_id)
+        ]);
+
+        const enriched = {
+            ...appointment,
+            patient: this.mapAppointmentUser(patient, appointment.patient_id),
+            medic: this.mapAppointmentUser(medic, appointment.medic_id),
+            speciality: this.mapAppointmentSpeciality(coreSpeciality, localSpeciality, appointment.speciality_id),
+            medical_center: this.mapAppointmentMedicalCenter(medicalCenter, appointment.center_id)
+        };
+
+        delete enriched.patient_id;
+        delete enriched.medic_id;
+        delete enriched.speciality_id;
+        delete enriched.center_id;
+
+        return enriched;
+    }
+
+    async getCoreUserForAppointment(userId, fieldName) {
+        if (!this.coreClient) {
+            throw new InternalServerError('Core client is required to retrieve user data when mocked data is disabled');
+        }
+
+        const response = await this.coreClient.getUserById(userId);
+        if (!response.success) {
+            throw new InternalServerError(`Failed to retrieve ${fieldName} ${userId} from Core. Status: ${response.status}`);
+        }
+
+        return this.normalizeCoreUser(response.data);
+    }
+
+    mapAppointmentUser(user, fallbackId) {
+        return {
+            id: user?.id ?? fallbackId,
+            fullname: this.getCoreUserFullname(user),
+            email: user?.email
+        };
+    }
+
+    getCoreUserFullname(user) {
+        if (user?.fullname) {
+            return this.normalizeFullname(user.fullname);
+        }
+
+        return this.normalizeFullname([user?.first_name, user?.last_name].filter(Boolean).join(' '));
+    }
+
+    normalizeFullname(fullname) {
+        return String(fullname)
+            .replace(/\d+/g, '')
+            .replace(/Medico|Paciente/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async getLocalSpecialityForAppointment(specialityId) {
+        if (!this.specialitiesService) {
+            throw new InternalServerError('Specialities service is required to retrieve appointment speciality data');
+        }
+
+        return await this.specialitiesService.getSpecialityById(specialityId);
+    }
+
+    mapAppointmentSpeciality(coreSpeciality, localSpeciality, fallbackId) {
+        return {
+            id: coreSpeciality?.id ?? localSpeciality?.id ?? fallbackId,
+            name: coreSpeciality?.name ?? localSpeciality?.name,
+            is_high_complexity: localSpeciality?.is_high_complexity
+        };
+    }
+
+    async getMedicalCenterForAppointment(centerId) {
+        if (!this.medicalCentersService) {
+            throw new InternalServerError('Medical centers service is required to retrieve appointment medical center data');
+        }
+
+        return await this.medicalCentersService.getMedicalCentersById(centerId);
+    }
+
+    mapAppointmentMedicalCenter(medicalCenter, fallbackId) {
+        return {
+            id: medicalCenter?.id ?? fallbackId,
+            name: medicalCenter?.name
+        };
     }
 
     async confirmAppointment(id) {
@@ -225,7 +336,7 @@ class AppointmentsService {
             repositoryFunction: (id) => this.appointmentsRepository.checkIn(id),
         };
 
-        const appointmentInformation = await this.getAppointmentById(id);
+        const appointmentInformation = await this.findAppointmentById(id);
         const actualStatus = appointmentInformation.status;
 
         const maxHoursBeforeAppointment = 1;
@@ -331,7 +442,7 @@ class AppointmentsService {
     }
 
     async cancelAppointment(id) {
-        const appointment = await this.getAppointmentById(id);
+        const appointment = await this.findAppointmentById(id);
         const actualStatus = appointment.status;
 
         const perform = {
@@ -351,7 +462,7 @@ class AppointmentsService {
             repositoryFunction: (id, data) => this.appointmentsRepository.reschedule(id, data),
         };
 
-        const appointmentInformation = await this.getAppointmentById(id);
+        const appointmentInformation = await this.findAppointmentById(id);
         const actualStatus = appointmentInformation.status;
         const actualStartsAt = appointmentInformation.starts_at;
         const actualEndsAt = appointmentInformation.ends_at;
@@ -401,7 +512,7 @@ class AppointmentsService {
             repositoryFunction: (id) => this.appointmentsRepository.start(id),
         };
 
-        const appointmentInformation = await this.getAppointmentById(id);
+        const appointmentInformation = await this.findAppointmentById(id);
         const actualStatus = appointmentInformation.status;
         return await this.updateAppointmentStatus(id, perform, actualStatus);
     }
@@ -413,7 +524,7 @@ class AppointmentsService {
             repositoryFunction: (id) => this.appointmentsRepository.complete(id),
         };
 
-        const appointmentInformation = await this.getAppointmentById(id);
+        const appointmentInformation = await this.findAppointmentById(id);
         const actualStatus = appointmentInformation.status;
 
         return await this.updateAppointmentStatusAndNotify(id, perform, actualStatus);
@@ -502,7 +613,7 @@ class AppointmentsService {
         return { message: `Set as absent ${totalToSetAsAbsent} confirmed appointments` };
     }
     async getAppointmentStatus(id) {
-        const appointmentInformation = await this.getAppointmentById(id);
+        const appointmentInformation = await this.findAppointmentById(id);
         const originalStatus = appointmentInformation.status;
         return originalStatus;
     }
@@ -583,6 +694,13 @@ class AppointmentsService {
 
         for (const event of events) {
             const eventTypeId = coreConfig.eventTypeIds[event.eventName];
+
+            if (!eventTypeId) {
+                const envName = coreEventTypeEnvNames[event.eventName] || `Core event type for ${event.eventName}`;
+                console.warn(`${requestId} - Skipping Core event ${event.eventName} for appointment id ${appointmentId}: missing ${envName}`);
+                continue;
+            }
+
             const result = await this.coreClient.publishEvent(eventTypeId, event.payload, requestId);
 
             if (!result.success) {
@@ -694,7 +812,7 @@ class AppointmentsService {
     }
 
     async getAppointmentNotificationsById(appointmentId) {
-        await this.getAppointmentById(appointmentId);
+        await this.findAppointmentById(appointmentId);
 
         const getNotifications = await this.appointmentsRepository.getAppointmentNotificationsById(appointmentId);
         if (!getNotifications.success)

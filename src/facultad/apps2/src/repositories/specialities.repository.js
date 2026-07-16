@@ -46,6 +46,52 @@ class MySqlSpecialitiesRepository {
     }
   }
 
+  async findByName(name) {
+    try {
+      const [rows] = await this.pool.query(
+        `
+          SELECT
+            id,
+            name,
+            is_high_complexity,
+            type
+          FROM specialities
+          WHERE LOWER(name) = LOWER(?)
+          LIMIT 1
+        `,
+        [name]
+      );
+
+      return { success: true, data: rows[0] ?? null };
+    } catch (error) {
+      return { success: false, sqlState: error.sqlState, errorMessage: error.message };
+    }
+  }
+
+  async create(data) {
+    try {
+      const [result] = await this.pool.query(
+        `
+          INSERT INTO specialities (
+            name,
+            is_high_complexity,
+            type
+          )
+          VALUES (?, ?, ?)
+        `,
+        [
+          data.name,
+          data.is_high_complexity,
+          data.type
+        ]
+      );
+
+      return await this.findById(result.insertId);
+    } catch (error) {
+      return { success: false, sqlState: error.sqlState, errorMessage: error.message };
+    }
+  }
+
   async findAll(limit, queryFilters) {
     try{
       const baseQuery = `

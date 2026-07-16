@@ -1,86 +1,186 @@
+const { BadRequestError } = require('@apps2/errors/bad-request.error');
+const { InternalServerError } = require('@apps2/errors/internal-server.error');
+const { NotFoundError } = require('@apps2/errors/not-found.error');
+
 class MedicsService {
-    constructor(coreClient, medicUserIds) {
+    constructor(medicsRepository, coreClient, specialitiesService = null) {
+        this.medicsRepository = medicsRepository;
         this.coreClient = coreClient;
-        this.medicUserIds = medicUserIds;
+        this.specialitiesService = specialitiesService;
         this.medicsCache = [];
+        this.refreshPromise = null;
     }
 
-    getMedics(query = {}) {
-        const specialityId = query.speciality_id;
-        return specialityId
-            ? this.medicsCache.filter((medic) => medic.speciality_id === specialityId)
+    async getMedics(query = {}) {
+        if (this.refreshPromise) {
+            await this.refreshPromise;
+        }
+
+        return query.speciality_id
+            ? this.medicsCache.filter((medic) => medic.speciality_id === query.speciality_id)
             : this.medicsCache;
     }
 
-    async refreshMedicsCache() {
-        if (!this.coreClient) {
-            console.warn('[MEDICS] Core client is not available. Medics cache was not refreshed.');
-            return this.medicsCache;
+    async createMedic(data) {
+        if (this.refreshPromise) {
+            await this.refreshPromise;
         }
 
-        await this.coreClient.getAccessToken();
+        await this.validateMedicIsNotAlreadyCached(data.medic_id);
+        await this.validateLocalSpecialityExists(data.speciality_id);
+        await this.validateCoreSpecialityExists(data.speciality_id);
+        const medics = await this.getMedicsFromCore(data.medic_id);
 
-        const results = await Promise.allSettled(
-            this.medicUserIds.map((userId) => this.getMedicFromCore(userId))
+        const result = await this.medicsRepository.saveId(data.medic_id);
+        if (!result.success) {
+            throw new InternalServerError('Failed to save cached medic id: ' + result.errorMessage);
+        }
+
+        this.upsertMedicsInCache(data.medic_id, medics);
+
+        return medics;
+    }
+
+    async refreshMedicsCache() {
+        this.refreshPromise = this.loadMedicsCache();
+
+        try {
+            return await this.refreshPromise;
+        } finally {
+            this.refreshPromise = null;
+        }
+    }
+
+    async loadMedicsCache() {
+        const result = await this.medicsRepository.findAllIds();
+        if (!result.success) {
+            throw new InternalServerError('Failed to retrieve cached medic ids: ' + result.errorMessage);
+        }
+
+        if (this.coreClient && typeof this.coreClient.getAccessToken === 'function') {
+            await this.coreClient.getAccessToken();
+        }
+
+        const responses = await Promise.allSettled(
+            result.data.map((medic) => this.getMedicsFromCore(medic.medic_id))
         );
-
-        const medics = results
-            .filter((result) => result.status === 'fulfilled' && result.value)
-            .map((result) => result.value);
+        const medics = responses
+            .filter((response) => response.status === 'fulfilled' && response.value)
+            .flatMap((response) => response.value);
 
         this.medicsCache = medics;
-        console.log(`[MEDICS] Cache refreshed with ${medics.length}/${this.medicUserIds.length} medics`);
+        console.log(`[MEDICS] Cache refreshed with ${medics.length} medic speciality rows from ${result.data.length} medics`);
 
-        results
-            .filter((result) => result.status === 'rejected')
-            .forEach((result) => console.warn('[MEDICS] Failed to load medic from Core', result.reason));
+        responses
+            .filter((response) => response.status === 'rejected')
+            .forEach((response) => console.warn('[MEDICS] Failed to hydrate cached medic from Core', response.reason));
 
         return this.medicsCache;
     }
 
-    async getMedicFromCore(userId) {
-        const response = await this.coreClient.getUserById(userId);
+    async getMedicsFromCore(medicId) {
+        if (!this.coreClient) {
+            throw new InternalServerError('Core client is required to hydrate cached medics');
+        }
 
+        const response = await this.coreClient.getUserById(medicId);
         if (!response.success) {
-            console.warn(`[MEDICS] Core user request failed userId=${userId} status=${response.status} response="${this.formatCoreResponseForLog(response.data)}"`);
-            return null;
+            throw new InternalServerError(`Failed to retrieve medic ${medicId} from Core. Status: ${response.status}`);
         }
 
         if (!this.isValidCoreUser(response.data)) {
-            console.warn(`[MEDICS] Core user response is invalid userId=${userId} status=${response.status} response="${this.formatCoreResponseForLog(response.data)}"`);
-            return null;
+            throw new InternalServerError(`Core medic ${medicId} response is invalid`);
         }
 
         return this.mapCoreUserToMedic(response.data);
     }
 
-    isValidCoreUser(user) {
-        return Boolean(user && typeof user === 'object' && user.email);
-    }
-
-    formatCoreResponseForLog(data, maxLength = 500) {
-        const value = data && typeof data === 'object' && Object.hasOwn(data, 'raw')
-            ? data.raw
-            : JSON.stringify(data || {});
-        const flatValue = String(value).replace(/\s+/g, ' ').trim();
-
-        if (flatValue.length <= maxLength) {
-            return flatValue;
+    async validateMedicIsNotAlreadyCached(medicId) {
+        if (typeof this.medicsRepository.findById !== 'function') {
+            throw new InternalServerError('Medics repository is required to validate cached medic ids');
         }
 
-        return `${flatValue.slice(0, maxLength)}...`;
+        const response = await this.medicsRepository.findById(medicId);
+        if (!response.success) {
+            throw new InternalServerError('Failed to validate cached medic id: ' + response.errorMessage);
+        }
+
+        if (response.data) {
+            throw new BadRequestError(`medic_id ${medicId} is already cached`);
+        }
+    }
+
+    async validateLocalSpecialityExists(specialityId) {
+        if (!this.specialitiesService) {
+            throw new InternalServerError('Specialities service is required to validate local speciality data');
+        }
+
+        try {
+            await this.specialitiesService.getSpecialityById(specialityId);
+        } catch (error) {
+            if (error instanceof NotFoundError) {
+                throw new BadRequestError(`speciality_id ${specialityId} does not exist locally`);
+            }
+
+            throw error;
+        }
+    }
+
+    async validateCoreSpecialityExists(specialityId) {
+        if (!this.coreClient || typeof this.coreClient.getSpecialityById !== 'function') {
+            throw new InternalServerError('Core client is required to validate Core speciality data');
+        }
+
+        const response = await this.coreClient.getSpecialityById(specialityId);
+        if (!response.success) {
+            if (response.status === 404) {
+                throw new BadRequestError(`speciality_id ${specialityId} does not exist in Core`);
+            }
+
+            throw new InternalServerError(`Failed to retrieve speciality ${specialityId} from Core. Status: ${response.status}`);
+        }
+    }
+
+    isValidCoreUser(user) {
+        return Boolean(user && typeof user === 'object' && user.id && user.email);
     }
 
     mapCoreUserToMedic(user) {
-        const speciality = Array.isArray(user.specialities) ? user.specialities[0] : null;
-
-        return {
+        const specialities = Array.isArray(user.specialities) && user.specialities.length > 0
+            ? user.specialities
+            : [null];
+        const baseMedic = {
             medic_id: user.id,
-            fullname: [user.first_name, user.last_name].filter(Boolean).join(' '),
+            fullname: this.normalizeFullname([user.first_name, user.last_name].filter(Boolean).join(' ')),
             email: user.email,
+        };
+
+        return specialities.map((speciality) => ({
+            ...baseMedic,
             speciality_id: speciality ? speciality.id : null,
             speciality_name: speciality ? speciality.name : null,
-        };
+        }));
+    }
+
+    normalizeFullname(fullname) {
+        return String(fullname)
+            .replace(/\d+/g, '')
+            .replace(/Medico/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    upsertMedicsInCache(medicId, medics) {
+        this.medicsCache = this.medicsCache
+            .filter((cachedMedic) => cachedMedic.medic_id !== medicId)
+            .concat(medics)
+            .sort((a, b) => {
+                if (a.medic_id !== b.medic_id) {
+                    return a.medic_id - b.medic_id;
+                }
+
+                return (a.speciality_id || 0) - (b.speciality_id || 0);
+            });
     }
 }
 

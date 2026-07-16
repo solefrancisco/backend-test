@@ -117,7 +117,7 @@ function generateAbsentAppointmentNotification(data, appointmentId, notification
 }
 
 function generateOperationsRoomWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
-    const url = process.env.OPERATING_ROOM_WEBHOOK_URL || 'https://webhook.site/a9b2fece-53f8-4fb0-bf1e-b350a862f99a';
+    const url = process.env.OPERATING_ROOM_WEBHOOK_URL || 'https://healthgrid-hce-backend.onrender.com/api/v1/webhook/turnos/presentismo';
     // const notificationOriginalData = data.data;
     
     const notificationItem = Array.isArray(data)
@@ -147,7 +147,7 @@ function generateOperationsRoomWebhookNotification(data, appointmentId, notifica
 }
 
 function generateHighComplexityWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
-    const url = process.env.HIGH_COMPLEXITY_WEBHOOK_URL || 'https://webhook.site/a9b2fece-53f8-4fb0-bf1e-b350a862f99a';
+    const url = process.env.HIGH_COMPLEXITY_WEBHOOK_URL || 'https://healthgrid-hce-backend.onrender.com/api/v1/webhook/turnos/presentismo';
     // const notificationOriginalData = data.data;
     
     const notificationItem = Array.isArray(data)
@@ -172,7 +172,7 @@ function generateHighComplexityWebhookNotification(data, appointmentId, notifica
 }
 
 function generateCheckInWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
-    const url = process.env.CHECK_IN_WEBHOOK_URL || 'https://webhook.site/a9b2fece-53f8-4fb0-bf1e-b350a862f99a';
+    const url = process.env.CHECK_IN_WEBHOOK_URL || 'https://healthgrid-hce-backend.onrender.com/api/v1/webhook/turnos/presentismo';
     // const notificationOriginalData = data.data;
     
     const notificationItem = Array.isArray(data)

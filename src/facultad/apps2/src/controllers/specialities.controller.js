@@ -25,6 +25,17 @@ class SpecialitiesController {
         }
     }
 
+    async createSpeciality(req, res, next) {
+        try {
+            const body = req.validatedRequest ? req.validatedRequest.body : req.body;
+            const speciality = await this.specialitiesService.createSpeciality(body);
+
+            return res.status(201).json(speciality);
+        } catch (error) {
+            next(error);
+        }
+    }
+
 }
 
 module.exports = { SpecialitiesController };

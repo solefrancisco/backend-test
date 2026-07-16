@@ -31,6 +31,11 @@ function createApp(dependencies) {
 
 function bootstrapAppControllers(app, dependencies) {
     if (dependencies.authController) {
+        app.get(
+            '/auth/sso',
+            (req, res, next) => dependencies.authController.ssoCallback(req, res, next)
+        );
+
         app.use(
             '/api/v1/auth',
             AuthRouter(dependencies.authController)

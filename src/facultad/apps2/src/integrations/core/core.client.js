@@ -11,19 +11,203 @@ class CoreClient {
     }
 
     async exchangeSsoTicket(ticket) {
-        const url = `${this.config.baseUrl}/auth/sso-exchange`;
+        const url = this.config.ssoExchangeUrl || `${this.config.baseUrl}/auth/sso-exchange`;
+        const context = { operation: 'exchangeSsoTicket' };
         const response = await this.fetchCore('POST', url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ticket }),
-            }, { operation: 'exchangeSsoTicket' });
+            }, context);
 
         if (!response.ok) {
+            const data = await this.readJson(response);
+            this.logCoreResponseFailure('POST', url, response, data, context);
             return { success: false, status: response.status };
         }
 
         const data = await response.json();
         return { success: true, status: response.status, data };
+    }
+
+    async createSsoTicket(token, requestId) {
+        const url = this.config.ssoTicketUrl || 'https://api.healthcare.cantero.ar/auth/sso-ticket';
+        const context = {
+            requestId,
+            operation: 'createSsoTicketPassthrough',
+        };
+        const response = await this.fetchCore('POST', url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                ...(requestId ? { 'x-request-id': requestId } : {}),
+            },
+        }, context);
+        const body = await response.text();
+        this.logCorePassthroughFailure('POST', url, response, body, context);
+
+        return {
+            status: response.status,
+            contentType: response.headers && response.headers.get
+                ? response.headers.get('content-type')
+                : null,
+            body,
+        };
+    }
+
+    async login(credentials, requestId) {
+        return await this.postAuthPassthrough('/login', credentials, requestId, 'loginPassthrough');
+    }
+
+    async forgotPassword(payload, requestId) {
+        return await this.postAuthPassthrough('/forgot-password', payload, requestId, 'forgotPasswordPassthrough');
+    }
+
+    async resetPassword(payload, requestId) {
+        return await this.postAuthPassthrough('/reset-password', payload, requestId, 'resetPasswordPassthrough');
+    }
+
+    async register(payload, requestId) {
+        const result = await this.postAuthPassthrough('/register', payload, requestId, 'registerPassthrough');
+
+        await this.assignRegisteredUserPatientRole(result, requestId);
+
+        return result;
+    }
+
+    async postAuthPassthrough(path, payload, requestId, operation) {
+        const url = `https://gw.healthcare.cantero.ar/api/auth${path}`;
+        const context = {
+            requestId,
+            operation,
+            email: this.maskEmail(payload && payload.email),
+        };
+        if (operation === 'registerPassthrough') {
+            context.deferResponseLog = true;
+        }
+        const response = await this.fetchCore('POST', url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(requestId ? { 'x-request-id': requestId } : {}),
+            },
+            body: JSON.stringify(payload),
+        }, context);
+        const body = await response.text();
+        if (operation === 'registerPassthrough') {
+            const registeredUserId = this.getRegisteredUserIdFromBody(body);
+            if (registeredUserId) {
+                context.registeredUserId = registeredUserId;
+            }
+            this.logCoreResponse('POST', url, response, performance.now(), context);
+        }
+        this.logCorePassthroughFailure('POST', url, response, body, context);
+
+        return {
+            status: response.status,
+            contentType: response.headers && response.headers.get
+                ? response.headers.get('content-type')
+                : null,
+            body,
+        };
+    }
+
+    async assignRegisteredUserPatientRole(registerResult, requestId) {
+        if (registerResult.status < 200 || registerResult.status >= 300) {
+            return;
+        }
+
+        const userId = this.getRegisteredUserId(registerResult.body);
+        if (!userId) {
+            throw new Error('Core register response did not include user id to assign default role');
+        }
+
+        const response = await this.assignUserRole(userId, 10, requestId);
+
+        if (!response.success) {
+            throw new Error(`Failed to assign default role to registered user ${userId}. Status: ${response.status}`);
+        }
+    }
+
+    getRegisteredUserId(body) {
+        const userId = this.getRegisteredUserIdFromBody(body);
+
+        if (userId) {
+            return userId;
+        }
+
+        if (!body) {
+            return null;
+        }
+
+        try {
+            JSON.parse(body);
+            return null;
+        } catch (error) {
+            console.warn(`[CORE] Register response body is not valid JSON; skipping default role assignment body="${this.truncateForLog(body)}"`);
+            return null;
+        }
+    }
+
+    getRegisteredUserIdFromBody(body) {
+        if (!body) {
+            return null;
+        }
+
+        try {
+            const data = JSON.parse(body);
+            return data && data.user && data.user.id
+                ? data.user.id
+                : data && data.id ? data.id : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    async assignUserRole(userId, roleId, requestId) {
+        const token = await this.getAccessToken();
+        const response = await this.postUserRole(userId, roleId, token, requestId);
+
+        if (response.status === 401) {
+            this.logCoreRetry('POST', this.getUserRoleUrl(userId), requestId, 'received 401 while assigning user role');
+            this.clearAccessToken();
+            const refreshedToken = await this.getAccessToken();
+            return await this.postUserRole(userId, roleId, refreshedToken, requestId);
+        }
+
+        return response;
+    }
+
+    async postUserRole(userId, roleId, token, requestId) {
+        const url = this.getUserRoleUrl(userId);
+        const response = await this.fetchCore('POST', url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                ...(requestId ? { 'x-request-id': requestId } : {}),
+            },
+            body: JSON.stringify({ role_id: roleId }),
+        }, {
+            requestId,
+            operation: 'assignUserRole',
+            userId,
+            roleId,
+        });
+
+        const context = {
+            requestId,
+            operation: 'assignUserRole',
+            userId,
+            roleId,
+        };
+        const data = await this.readJson(response);
+        this.logCoreResponseFailure('POST', url, response, data, context);
+        return { success: response.ok, status: response.status, data };
+    }
+
+    getUserRoleUrl(userId) {
+        return `https://api.healthcare.cantero.ar/users/${userId}/roles`;
     }
 
     async publishEvent(eventTypeId, payload, requestId) {
@@ -46,13 +230,13 @@ class CoreClient {
 
     async getSpecialityById(id, requestId) {
         const token = await this.getAccessToken();
-        const response = await this.getAuthenticatedJson(`/specialities/${id}`, token, requestId);
+        const response = await this.getAuthenticatedJson(`/specialities/${id}`, token, requestId, 'getSpecialityById');
 
         if (response.status === 401) {
             this.logCoreRetry('GET', `${this.config.baseUrl}/specialities/${id}`, requestId, 'received 401 while getting speciality');
             this.clearAccessToken();
             const refreshedToken = await this.getAccessToken();
-            return await this.getAuthenticatedJson(`/specialities/${id}`, refreshedToken, requestId);
+            return await this.getAuthenticatedJson(`/specialities/${id}`, refreshedToken, requestId, 'getSpecialityById');
         }
 
         return response;
@@ -60,13 +244,13 @@ class CoreClient {
 
     async getUserById(id, requestId) {
         const token = await this.getAccessToken();
-        const response = await this.getAuthenticatedJson(`/users/${id}`, token, requestId);
+        const response = await this.getAuthenticatedJson(`/users/${id}`, token, requestId, 'getUserById');
 
         if (response.status === 401) {
             this.logCoreRetry('GET', `${this.config.baseUrl}/users/${id}`, requestId, 'received 401 while getting user');
             this.clearAccessToken();
             const refreshedToken = await this.getAccessToken();
-            return await this.getAuthenticatedJson(`/users/${id}`, refreshedToken, requestId);
+            return await this.getAuthenticatedJson(`/users/${id}`, refreshedToken, requestId, 'getUserById');
         }
 
         return response;
@@ -126,15 +310,25 @@ class CoreClient {
         });
 
         const data = await this.readJson(response);
+        this.logCoreResponseFailure('POST', url, response, data, {
+            requestId,
+            operation: 'postEventLog',
+            eventTypeId,
+            publisherModule: this.config.publisherModule,
+        });
         return { success: response.ok, status: response.status, data };
     }
 
-    async getAuthenticatedJson(path, token, requestId) {
+    async getAuthenticatedJson(path, token, requestId, operation = 'getAuthenticatedJson') {
         const url = `${this.config.baseUrl}${path}`;
-        return await this.getAuthenticatedJsonUrl(url, token, requestId);
+        return await this.getAuthenticatedJsonUrl(url, token, requestId, operation);
     }
 
-    async getAuthenticatedJsonUrl(url, token, requestId) {
+    async getAuthenticatedJsonUrl(url, token, requestId, operation = 'getAuthenticatedJson') {
+        const context = {
+            requestId,
+            operation,
+        };
         const response = await this.fetchCore('GET', url, {
             method: 'GET',
             headers: {
@@ -142,12 +336,10 @@ class CoreClient {
                 'Authorization': `Bearer ${token}`,
                 ...(requestId ? { 'x-request-id': requestId } : {}),
             },
-        }, {
-            requestId,
-            operation: 'getAuthenticatedJson',
-        });
+        }, context);
 
         const data = await this.readJson(response);
+        this.logCoreResponseFailure('GET', url, response, data, context);
         return { success: response.ok, status: response.status, data };
     }
 
@@ -157,7 +349,6 @@ class CoreClient {
         }
 
         if (this.accessTokenPromise) {
-            console.log('[CORE] Waiting for in-flight access token request');
             return await this.accessTokenPromise;
         }
 
@@ -188,7 +379,12 @@ class CoreClient {
             email: this.maskEmail(this.config.email),
         });
 
+        const context = {
+            operation: 'getAccessToken',
+            email: this.maskEmail(this.config.email),
+        };
         const data = await this.readJson(response);
+        this.logCoreResponseFailure('POST', url, response, data, context);
         if (!response.ok) {
             throw new Error(`Core login failed with status ${response.status}`);
         }
@@ -200,22 +396,16 @@ class CoreClient {
 
         this.accessToken = token;
         this.accessTokenExpiresAt = Date.now() + 23 * 60 * 60 * 1000;
-        console.log(`[CORE] Access token cached until ${new Date(this.accessTokenExpiresAt).toISOString()}`);
-
         return this.accessToken;
     }
 
     clearAccessToken() {
-        if (this.accessToken) {
-            console.warn('[CORE] Clearing cached access token');
-        }
         this.accessToken = null;
         this.accessTokenExpiresAt = 0;
         this.accessTokenPromise = null;
     }
 
     async findJwk(kid) {
-        console.log(`[CORE] Looking up JWKS key kid=${kid || 'missing'}`);
         const jwks = await this.getJwks();
         const key = jwks.keys.find(item => item.kid === kid);
 
@@ -237,13 +427,14 @@ class CoreClient {
 
     async getJwks() {
         if (this.jwks && this.jwksExpiresAt > Date.now()) {
-            console.log(`[CORE] Using cached JWKS until ${new Date(this.jwksExpiresAt).toISOString()}`);
             return this.jwks;
         }
 
-        const url = 'https://gw.healthcare.cantero.ar/.well-known/jwks.json';
-        const response = await this.fetchCore('GET', url, undefined, { operation: 'getJwks' });
+        const url = this.config.jwksUrl || 'https://api.healthcare.cantero.ar/.well-known/jwks.json';
+        const context = { operation: 'getJwks' };
+        const response = await this.fetchCore('GET', url, undefined, context);
         const data = await this.readJson(response);
+        this.logCoreResponseFailure('GET', url, response, data, context);
 
         if (!response.ok) {
             throw new Error(`Could not retrieve Core JWKS. Status ${response.status}`);
@@ -251,7 +442,6 @@ class CoreClient {
 
         this.jwks = data;
         this.jwksExpiresAt = Date.now() + 5 * 60 * 1000;
-        console.log(`[CORE] JWKS cached with ${Array.isArray(data.keys) ? data.keys.length : 0} keys until ${new Date(this.jwksExpiresAt).toISOString()}`);
 
         return this.jwks;
     }
@@ -270,7 +460,6 @@ class CoreClient {
         try {
             return JSON.parse(text);
         } catch (error) {
-            console.warn(`[CORE] Response body is not valid JSON. status=${response.status} body="${this.truncateForLog(text)}"`);
             return { raw: text };
         }
     }
@@ -280,7 +469,10 @@ class CoreClient {
 
         try {
             const response = await fetch(url, options);
-            this.logCoreResponse(method, url, response, startedAt, context);
+            response.coreDurationMs = Math.round(performance.now() - startedAt);
+            if (!context.deferResponseLog) {
+                this.logCoreResponse(method, url, response, startedAt, context);
+            }
             return response;
         } catch (error) {
             this.logCoreError(method, url, error, startedAt, context);
@@ -295,9 +487,25 @@ class CoreClient {
     }
 
     logCoreResponse(method, url, response, startedAt, context = {}) {
-        const durationMs = Math.round(performance.now() - startedAt);
-        const log = response.ok ? console.log : console.warn;
+        const durationMs = response.coreDurationMs || Math.round(performance.now() - startedAt);
+        const log = this.isResponseOk(response) ? console.log : console.warn;
         log(`[CORE] <- ${method} ${url} status=${response.status} durationMs=${durationMs} ${this.formatLogContext(context)}`);
+    }
+
+    logCoreResponseFailure(method, url, response, data, context = {}) {
+        if (this.isResponseOk(response)) {
+            return;
+        }
+
+        console.warn(`[CORE] request failed ${method} ${url} status=${response.status} ${this.formatDurationContext(response)}response="${this.formatCoreResponseForLog(data)}" ${this.formatLogContext(context)}`);
+    }
+
+    logCorePassthroughFailure(method, url, response, body, context = {}) {
+        if (this.isResponseOk(response)) {
+            return;
+        }
+
+        console.warn(`[CORE] request failed ${method} ${url} status=${response.status} ${this.formatDurationContext(response)}response="${this.formatFlatResponseForLog(body)}" ${this.formatLogContext(context)}`);
     }
 
     logCoreRetry(method, url, requestId, reason) {
@@ -311,7 +519,7 @@ class CoreClient {
 
     formatLogContext(context) {
         const entries = Object.entries(context)
-            .filter(([, value]) => value !== undefined && value !== null && value !== '')
+            .filter(([key, value]) => key !== 'deferResponseLog' && value !== undefined && value !== null && value !== '')
             .map(([key, value]) => `${key}=${value}`);
 
         return entries.length ? entries.join(' ') : '';
@@ -335,6 +543,32 @@ class CoreClient {
         }
 
         return `${normalizedValue.slice(0, maxLength)}...`;
+    }
+
+    formatCoreResponseForLog(data, maxLength = 500) {
+        const value = data && typeof data === 'object' && Object.hasOwn(data, 'raw')
+            ? data.raw
+            : JSON.stringify(data || {});
+
+        return this.formatFlatResponseForLog(value, maxLength);
+    }
+
+    isResponseOk(response) {
+        if (typeof response.ok === 'boolean') {
+            return response.ok;
+        }
+
+        return response.status >= 200 && response.status < 300;
+    }
+
+    formatFlatResponseForLog(value, maxLength = 500) {
+        return this.truncateForLog(value, maxLength).replace(/"/g, "'");
+    }
+
+    formatDurationContext(response) {
+        return typeof response.coreDurationMs === 'number'
+            ? `durationMs=${response.coreDurationMs} `
+            : '';
     }
 }
 

@@ -1,48 +1,35 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const { BadRequestError } = require('@apps2/errors/bad-request.error');
+const { NotFoundError } = require('@apps2/errors/not-found.error');
 const { MedicsService } = require('@apps2/services/medics.service');
 
-test('getMedics returns cached medics as a list', () => {
-    const service = new MedicsService(null, []);
-    service.medicsCache = [
-        {
-            medic_id: 214,
-            fullname: 'Valentina Molina',
-            email: 'valentina@example.com',
-            speciality_id: 67,
-            speciality_name: 'Cirugia Ginecologica',
-        },
-    ];
+function createCoreUser(
+    id,
+    firstName = 'Mateo001',
+    lastName = 'SanchezMedico001',
+    specialities = [{ id: 1, name: 'Cardiologia' }]
+) {
+    return {
+        id,
+        first_name: firstName,
+        last_name: lastName,
+        email: `medic${id}@example.com`,
+        specialities,
+    };
+}
 
-    assert.deepEqual(service.getMedics(), service.medicsCache);
-});
-
-test('getMedics filters cached medics by speciality_id', () => {
-    const service = new MedicsService(null, []);
-    service.medicsCache = [
-        {
-            medic_id: 214,
-            fullname: 'Valentina Molina',
-            email: 'valentina@example.com',
-            speciality_id: 67,
-            speciality_name: 'Cirugia Ginecologica',
-        },
-        {
-            medic_id: 85,
-            fullname: 'Martin Perez',
-            email: 'martin@example.com',
-            speciality_id: 1,
-            speciality_name: 'Cardiologia',
-        },
-    ];
-
-    assert.deepEqual(service.getMedics({ speciality_id: 67 }), [service.medicsCache[0]]);
-});
-
-test('refreshMedicsCache fetches users from Core and maps them into cached medics', async () => {
+test('refreshMedicsCache reads ids from repository and hydrates them from Core', async () => {
     const requestedIds = [];
-    const coreClient = {
+    const service = new MedicsService({
+        async findAllIds() {
+            return {
+                success: true,
+                data: [{ medic_id: 85 }, { medic_id: 86 }],
+            };
+        },
+    }, {
         async getAccessToken() {
             return 'core-token';
         },
@@ -51,69 +38,227 @@ test('refreshMedicsCache fetches users from Core and maps them into cached medic
             return {
                 success: true,
                 status: 200,
-                data: {
-                    id,
-                    first_name: `Name${id}`,
-                    last_name: `Last${id}`,
-                    email: `medic${id}@example.com`,
-                    specialities: [
-                        {
-                            id: id + 10,
-                            name: `Speciality ${id}`,
-                        },
-                    ],
-                },
+                data: id === 85
+                    ? createCoreUser(id, 'Mateo001', 'SanchezMedico001', [
+                        { id: 1, name: 'Cardiologia' },
+                        { id: 2, name: 'Traumatologia' },
+                    ])
+                    : createCoreUser(id),
             };
         },
-    };
-    const service = new MedicsService(coreClient, [85, 86]);
+    });
 
-    const cache = await service.refreshMedicsCache();
+    const medics = await service.refreshMedicsCache();
 
     assert.deepEqual(requestedIds.sort((a, b) => a - b), [85, 86]);
-    assert.deepEqual(cache, [
+    assert.deepEqual(medics, [
         {
             medic_id: 85,
-            fullname: 'Name85 Last85',
+            fullname: 'Mateo Sanchez',
             email: 'medic85@example.com',
-            speciality_id: 95,
-            speciality_name: 'Speciality 85',
+            speciality_id: 1,
+            speciality_name: 'Cardiologia',
+        },
+        {
+            medic_id: 85,
+            fullname: 'Mateo Sanchez',
+            email: 'medic85@example.com',
+            speciality_id: 2,
+            speciality_name: 'Traumatologia',
         },
         {
             medic_id: 86,
-            fullname: 'Name86 Last86',
+            fullname: 'Mateo Sanchez',
             email: 'medic86@example.com',
-            speciality_id: 96,
-            speciality_name: 'Speciality 86',
+            speciality_id: 1,
+            speciality_name: 'Cardiologia',
         },
     ]);
 });
 
-test('refreshMedicsCache skips invalid Core user payloads', async () => {
-    const coreClient = {
-        async getAccessToken() {
-            return 'core-token';
+test('getMedics returns hydrated cache and filters by speciality_id', async () => {
+    const service = new MedicsService({}, null);
+    service.medicsCache = [
+        {
+            medic_id: 85,
+            fullname: 'Mateo Sanchez',
+            email: 'medic85@example.com',
+            speciality_id: 1,
+            speciality_name: 'Cardiologia',
         },
-        async getUserById() {
+        {
+            medic_id: 214,
+            fullname: 'Valentina Molina',
+            email: 'medic214@example.com',
+            speciality_id: 67,
+            speciality_name: 'Cirugia Ginecologica',
+        },
+    ];
+
+    assert.deepEqual(await service.getMedics({ speciality_id: 67 }), [service.medicsCache[1]]);
+    assert.deepEqual(await service.getMedics(), service.medicsCache);
+});
+
+test('createMedic saves only id and hydrates only the new medic from Core', async () => {
+    const savedIds = [];
+    const requestedIds = [];
+    const requestedCoreSpecialityIds = [];
+    const requestedLocalSpecialityIds = [];
+    const service = new MedicsService({
+        async findById() {
+            return { success: true, data: null };
+        },
+        async saveId(medicId) {
+            savedIds.push(medicId);
+            return { success: true, data: { medic_id: medicId } };
+        },
+    }, {
+        async getSpecialityById(id) {
+            requestedCoreSpecialityIds.push(id);
             return {
                 success: true,
                 status: 200,
-                data: { raw: '502 Bad Gateway' },
+                data: { id, name: 'Cardiologia' },
             };
         },
-    };
-    const service = new MedicsService(coreClient, [85]);
+        async getUserById(id) {
+            requestedIds.push(id);
+            return {
+                success: true,
+                status: 200,
+                data: createCoreUser(id, 'Valentina130', 'MolinaMedico130', [
+                    { id: 1, name: 'Cardiologia' },
+                    { id: 67, name: 'Cirugia Ginecologica' },
+                ]),
+            };
+        },
+    }, {
+        async getSpecialityById(id) {
+            requestedLocalSpecialityIds.push(id);
+            return { id, name: 'Cardiologia' };
+        },
+    });
+    service.medicsCache = [
+        {
+            medic_id: 85,
+            fullname: 'Mateo Sanchez',
+            email: 'medic85@example.com',
+            speciality_id: 1,
+            speciality_name: 'Cardiologia',
+        },
+    ];
 
-    const cache = await service.refreshMedicsCache();
+    const medics = await service.createMedic({ medic_id: 214, speciality_id: 1 });
 
-    assert.deepEqual(cache, []);
+    assert.deepEqual(savedIds, [214]);
+    assert.deepEqual(requestedLocalSpecialityIds, [1]);
+    assert.deepEqual(requestedCoreSpecialityIds, [1]);
+    assert.deepEqual(requestedIds, [214]);
+    assert.deepEqual(medics, [
+        {
+            medic_id: 214,
+            fullname: 'Valentina Molina',
+            email: 'medic214@example.com',
+            speciality_id: 1,
+            speciality_name: 'Cardiologia',
+        },
+        {
+            medic_id: 214,
+            fullname: 'Valentina Molina',
+            email: 'medic214@example.com',
+            speciality_id: 67,
+            speciality_name: 'Cirugia Ginecologica',
+        },
+    ]);
+    assert.deepEqual(service.medicsCache.map(item => `${item.medic_id}:${item.speciality_id}`), ['85:1', '214:1', '214:67']);
 });
 
-test('formatCoreResponseForLog flattens raw Core responses', () => {
-    const service = new MedicsService(null, []);
+test('createMedic throws BadRequestError when medic id is already cached', async () => {
+    const savedIds = [];
+    const service = new MedicsService({
+        async findById(medicId) {
+            return { success: true, data: { medic_id: medicId } };
+        },
+        async saveId(medicId) {
+            savedIds.push(medicId);
+            return { success: true, data: { medic_id: medicId } };
+        },
+    }, {
+        async getSpecialityById() {
+            throw new Error('Core speciality should not be requested');
+        },
+        async getUserById() {
+            throw new Error('Core user should not be requested');
+        },
+    }, {
+        async getSpecialityById() {
+            throw new Error('Local speciality should not be requested');
+        },
+    });
 
-    assert.equal(
-        service.formatCoreResponseForLog({ raw: '502\nBad Gateway' }),
-        '502 Bad Gateway'
+    await assert.rejects(
+        () => service.createMedic({ medic_id: 214, speciality_id: 1 }),
+        BadRequestError
     );
+    assert.deepEqual(savedIds, []);
+});
+
+test('createMedic throws BadRequestError when local speciality does not exist', async () => {
+    const savedIds = [];
+    const service = new MedicsService({
+        async findById() {
+            return { success: true, data: null };
+        },
+        async saveId(medicId) {
+            savedIds.push(medicId);
+            return { success: true, data: { medic_id: medicId } };
+        },
+    }, {
+        async getSpecialityById() {
+            throw new Error('Core speciality should not be requested');
+        },
+        async getUserById() {
+            throw new Error('Core user should not be requested');
+        },
+    }, {
+        async getSpecialityById(id) {
+            throw new NotFoundError(`Speciality id ${id} not found`);
+        },
+    });
+
+    await assert.rejects(
+        () => service.createMedic({ medic_id: 214, speciality_id: 999 }),
+        BadRequestError
+    );
+    assert.deepEqual(savedIds, []);
+});
+
+test('createMedic throws BadRequestError when Core speciality does not exist', async () => {
+    const savedIds = [];
+    const service = new MedicsService({
+        async findById() {
+            return { success: true, data: null };
+        },
+        async saveId(medicId) {
+            savedIds.push(medicId);
+            return { success: true, data: { medic_id: medicId } };
+        },
+    }, {
+        async getSpecialityById() {
+            return { success: false, status: 404 };
+        },
+        async getUserById() {
+            throw new Error('Core user should not be requested');
+        },
+    }, {
+        async getSpecialityById(id) {
+            return { id, name: 'Cardiologia' };
+        },
+    });
+
+    await assert.rejects(
+        () => service.createMedic({ medic_id: 214, speciality_id: 999 }),
+        BadRequestError
+    );
+    assert.deepEqual(savedIds, []);
 });

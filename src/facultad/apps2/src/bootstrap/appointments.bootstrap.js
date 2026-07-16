@@ -11,16 +11,18 @@ const { buildCoreClient } = require('@apps2/bootstrap/core.bootstrap');
 
 // just for mocking purposes, to avoid circular dependencies
 function mockRequiredDependencies() {
+    const { buildMedicalCentersController } = require('@apps2/bootstrap/medical-centers.bootstrap');
+    const { buildSpecialitiesController } = require('@apps2/bootstrap/specialities.bootstrap');
+    const dependencies = {
+        specialitiesService: buildSpecialitiesController().specialitiesService,
+        medicalCentersService: buildMedicalCentersController().medicalCentersService
+    };
+
     if (mockConfig.enabled) {
         console.log('Mocking enabled - building required dependencies for appointments service');
-        const { buildSpecialitiesController } = require('@apps2/bootstrap/specialities.bootstrap');
-        const { buildMedicalCentersController } = require('@apps2/bootstrap/medical-centers.bootstrap');
-        return {
-            specialitiesService: buildSpecialitiesController().specialitiesService,
-            medicalCentersService: buildMedicalCentersController().medicalCentersService
-        };
     } 
-    return {};
+
+    return dependencies;
 }
 function buildAppointmentsService(coreClient = buildCoreClient()) {
     const dependencies = mockRequiredDependencies();

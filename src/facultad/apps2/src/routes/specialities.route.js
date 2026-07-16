@@ -1,6 +1,7 @@
 const { Router } = require('express');
 
 const { validate } = require('@apps2/middlewares/validate.middleware');
+const { createSpecialitySchema } = require('@apps2/schemas/specialities/create-speciality.schema');
 const { getSpecialitiesSchema } = require('@apps2/schemas/specialities/get-specialities.schema');
 const { getSpecialityByIdSchema } = require('@apps2/schemas/specialities/get-speciality-by-id.schema');
 
@@ -10,6 +11,11 @@ function SpecialitiesRouter(specialitiesController) {
     router.get('/', 
         validate(getSpecialitiesSchema, 'query'),
         (req, res, next) => specialitiesController.getSpecialities(req, res, next)
+    );
+
+    router.post('/',
+        validate(createSpecialitySchema, 'body'),
+        (req, res, next) => specialitiesController.createSpeciality(req, res, next)
     );
 
     router.get('/:id', 

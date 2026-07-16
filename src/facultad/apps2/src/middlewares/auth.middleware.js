@@ -4,7 +4,14 @@ function createAuthMiddleware(coreClient) {
             const token = getToken(req);
 
             if (!token) {
-                return res.status(401).json({ error: 'no session' });
+                return res.status(401).json({
+                    error: 'missing_auth_token',
+                    message: 'No se recibio un JWT para autenticar la request. Envia Authorization: Bearer <token> o llama con la cookie session.',
+                    accepted_auth: [
+                        'Authorization: Bearer <jwt>',
+                        'Cookie: session=<jwt>',
+                    ],
+                });
             }
 
             const payload = await coreClient.verifyToken(token);
@@ -14,8 +21,12 @@ function createAuthMiddleware(coreClient) {
             };
 
             next();
-        } catch {
-            return res.status(401).json({ error: 'invalid token' });
+        } catch (error) {
+            return res.status(401).json({
+                error: 'invalid_auth_token',
+                message: 'El JWT recibido no es valido, expiro o no pudo validarse contra el JWKS de Core.',
+                detail: error.message,
+            });
         }
     };
 }

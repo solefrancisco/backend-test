@@ -46,6 +46,23 @@ class SpecialitiesService {
         
         return response.data;
     }
+
+    async createSpeciality(data) {
+        const existingSpeciality = await this.specialitiesRepository.findByName(data.name);
+
+        if (!existingSpeciality.success)
+            throw new InternalServerError('Failed to validate speciality name: ' + existingSpeciality.errorMessage);
+
+        if (existingSpeciality.data)
+            throw new BadRequestError(`Speciality ${data.name} already exists`);
+
+        const response = await this.specialitiesRepository.create(data);
+
+        if (!response.success)
+            throw new InternalServerError('Failed to create speciality: ' + response.errorMessage);
+
+        return response.data;
+    }
 }
 
 module.exports = { SpecialitiesService };

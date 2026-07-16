@@ -43,9 +43,7 @@ function buildDependencies() {
         dependencies.medicalCentersController = buildMedicalCentersController();
     }
 
-    if (coreClient) {
-        dependencies.medicsController = buildMedicsController(coreClient);
-    }
+    dependencies.medicsController = buildMedicsController(coreClient);
 
     if (env.notificationsEnabled) {
         dependencies.notificationsController = buildNotificationsController();
