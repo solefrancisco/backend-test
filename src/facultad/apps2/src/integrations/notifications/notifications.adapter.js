@@ -11,6 +11,7 @@ const {
     generateReminderAppointmentNotification,
     generateAbsentAppointmentNotification,
     generateOperationsRoomWebhookNotification,
+    generateOperationsRoomCreateWebhookNotification,
     generateHighComplexityWebhookNotification,
     generateCheckInWebhookNotification
 } = require('@apps2/integrations/notifications/appointments-notification.mapper');
@@ -56,6 +57,9 @@ class NotificationsAdapter {
       },
       webhookOperationsRoom: {
         generator: generateOperationsRoomWebhookNotification,
+      },
+      webhookOperationsRoomCreate: {
+        generator: generateOperationsRoomCreateWebhookNotification,
       },
       webhookHighComplexity: {
         generator: generateHighComplexityWebhookNotification,

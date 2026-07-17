@@ -23,6 +23,11 @@ function getFormattedTimestamp(){
     return date.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+function getRandomPriority() {
+    const priorities = ['BAJA', 'ALTA', 'MUY_ALTA'];
+    return priorities[Math.floor(Math.random() * priorities.length)];
+}
+
 function getDefaultNotificationTemplate(data, appointmentId, notificationTemplate) {
     const notificationItem = Array.isArray(data)
         ? data.find(item => item.notified_by === "email")
@@ -162,6 +167,31 @@ function generateOperationsRoomWebhookNotification(data, appointmentId, notifica
     return notification;
 }
 
+function generateOperationsRoomCreateWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
+    const url = getWebhookUrl('OPERATING_ROOM_CREATE_WEBHOOK_URL', 'https://modulo-6-api.hf.space/api/v1/quirofanos/reservas');
+    const notificationItem = Array.isArray(data)
+        ? data.find(item => item.notified_by === "email")
+        : data;
+
+    const notificationOriginalData = notificationItem?.data || notificationItem;
+    const notification = getDefaultWebhookNotificationTemplate(notificationOriginalData, appointmentId, notificationTemplate, url, reason, requestId);
+    const appointmentData = notificationOriginalData.appointment;
+
+    notification.request.body = {
+        turno_id: appointmentId,
+        paciente_id: metadata?.patient_id ?? notificationOriginalData.patient.id,
+        medico_cirujano_id: metadata?.medic_id ?? notificationOriginalData.medic.id,
+        fecha_hora_inicio: metadata?.starts_at ?? metadata?.new_starts_at ?? appointmentData.starts_at,
+        fecha_hora_fin_estimada: metadata?.ends_at ?? metadata?.new_ends_at ?? appointmentData.ends_at,
+        prioridad: getRandomPriority(),
+        hospital_id: String(metadata?.center_id ?? appointmentData.center_id),
+        specialty_id: metadata?.speciality_id ?? appointmentData.speciality_id,
+        observaciones: 'webhook'
+    };
+
+    return notification;
+}
+
 function generateHighComplexityWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
     const url = getWebhookUrl('HIGH_COMPLEXITY_WEBHOOK_URL', 'https://health-grid-backend-7l67.onrender.com/api/events/webhook');
     // const notificationOriginalData = data.data;
@@ -225,6 +255,7 @@ module.exports = {
     generateReminderAppointmentNotification,
     generateAbsentAppointmentNotification,
     generateOperationsRoomWebhookNotification,
+    generateOperationsRoomCreateWebhookNotification,
     generateHighComplexityWebhookNotification,
     generateCheckInWebhookNotification
 };

@@ -35,7 +35,7 @@ class AppointmentsService {
             // if mocking is enabled, we check in our database to avoid creating appointments with non existing data
             await this.specialitiesService.getSpecialityById(data.appointment.speciality_id);
         } else {
-            await this.validateCoreUserRole(data.patient.id, ['patient', 'pacient', 'paciente'], 'patient');
+            // await this.validateCoreUserRole(data.patient.id, ['patient', 'pacient', 'paciente'], 'patient');
             await this.validateCoreUserRole(data.medic.id, ['medic', 'medico'], 'medic');
             const speciality = await this.getCoreSpecialityForAppointment(data.appointment.speciality_id);
             data.appointment.speciality_name = speciality.name;
@@ -61,14 +61,32 @@ class AppointmentsService {
         }
 
         const appointmentId = result.data;
-        const emailNotification = {
-            notify_by: 'email',
-            notification_type: 'createAppointment',
+        const notificationsToQueue = [
+            {
+                notify_by: 'email',
+                notification_type: 'createAppointment',
+            },
+            {
+                notify_by: 'webhook',
+                notification_type: 'webhookOperationsRoomCreate',
+                reason: 'webhook',
+            }
+        ];
+
+        const queueResults = [];
+        for (const notification of notificationsToQueue) {
+            const queued = await this.queueNotificationForAppointment(appointmentId, notificationPayload, notification);
+            queueResults.push({ notification, queued });
         }
 
-        const queued = await this.queueNotificationForAppointment(appointmentId, notificationPayload, emailNotification);
-        if (!queued.success) {
-            console.error(`Error occurred while queuing notification for appointment id ${appointmentId}: ${queued.errorMessage}`);
+        for (const { notification, queued } of queueResults) {
+            if (!queued.success) {
+                console.error(`Error occurred while queuing ${notification.notification_type} notification for appointment id ${appointmentId}: ${queued.errorMessage}`);
+            }
+        }
+
+        const failedEmailQueue = queueResults.find(({ notification, queued }) => notification.notification_type === 'createAppointment' && !queued.success);
+        if (failedEmailQueue) {
             const deleteAppointmentNotification = await this.appointmentsRepository.deleteSavedNotification(appointmentId);
 
             if (!deleteAppointmentNotification.success)
@@ -83,7 +101,8 @@ class AppointmentsService {
             throw new InternalServerError(thrownErrorMessage);
         } 
 
-        const notificationId = queued.requestId;
+        const emailQueue = queueResults.find(({ notification }) => notification.notification_type === 'createAppointment');
+        const notificationId = emailQueue.queued.requestId;
         return { appointment_id: appointmentId, notification_id: notificationId };
     } 
 
@@ -400,7 +419,7 @@ class AppointmentsService {
             const isHighComplexity = speciality.is_high_complexity;
             const finalReason = reason === "ausente" ? "no se llevo a cabo porque el paciente no asistió" : reason;
 
-            if (isSurgery) {
+            if (isSurgery && reason !== "reprogramado") {
                 webhookPayload.push({
                     notify_by: 'webhook',
                     notification_type: 'webhookOperationsRoom',
@@ -410,7 +429,20 @@ class AppointmentsService {
                 });
             }
             
-            if (isHighComplexity) {
+            if (reason === "reprogramado" && (isSurgery || isHighComplexity)) {
+                metadata.starts_at = metadata.new_starts_at;
+                metadata.ends_at = metadata.new_ends_at;
+
+                webhookPayload.push({
+                    notify_by: 'webhook',
+                    notification_type: 'webhookOperationsRoomCreate',
+                    appointmentId: appointmentId,
+                    metadata: metadata,
+                    reason: 'Turno quirÃºrgico ' + finalReason,
+                });
+            }
+
+            if (isHighComplexity && reason === "cancelado") {
                 webhookPayload.push({
                     notify_by: 'webhook',
                     notification_type: 'webhookHighComplexity',
@@ -513,7 +545,12 @@ class AppointmentsService {
             previous_starts_at: actualStartsAt,
             previous_ends_at: actualEndsAt,
             new_starts_at: data.starts_at,
-            new_ends_at: data.ends_at
+            new_ends_at: data.ends_at,
+            center_id: centerId,
+            medic_id: medicId,
+            patient_id: patientId,
+            since: data.starts_at,
+            until: data.ends_at
         }
 
         let webhookPayload = await this.checkIfWebhookRequired(id, this.getAppointmentSpeciality(appointmentInformation), "reprogramado", metadata);

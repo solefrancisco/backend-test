@@ -109,9 +109,11 @@ test('createAppointment adds medical center name to notification payload', async
   service.getCoreSpecialityForAppointment = async () => ({ id: 4, name: 'Cardiologia' });
 
   let capturedPayload;
-  service.queueNotificationForAppointment = async (appointmentId, notificationPayload) => {
+  const queuedNotifications = [];
+  service.queueNotificationForAppointment = async (appointmentId, notificationPayload, notification) => {
     assert.equal(appointmentId, 123);
     capturedPayload = notificationPayload;
+    queuedNotifications.push(notification);
     return { success: true, requestId: 'notification-123' };
   };
 
@@ -139,6 +141,72 @@ test('createAppointment adds medical center name to notification payload', async
   assert.equal(capturedPayload.patient.fullname, 'Tomas Martinez');
   assert.equal(capturedPayload.appointment.speciality_name, 'Cardiologia');
   assert.equal(capturedPayload.appointment.medical_center_name, 'Centro medico Norte');
+  assert.deepEqual(
+    queuedNotifications.map(notification => notification.notification_type),
+    ['createAppointment', 'webhookOperationsRoomCreate']
+  );
+});
+
+test('createAppointment does not rollback when module 6 webhook queue fails', async () => {
+  let deleteSavedNotificationCalled = false;
+  let deleteAppointmentCalled = false;
+  const repository = {
+    create: async () => ({ success: true, data: 123 }),
+    deleteSavedNotification: async () => {
+      deleteSavedNotificationCalled = true;
+      return { success: true };
+    },
+    delete: async () => {
+      deleteAppointmentCalled = true;
+      return { success: true };
+    }
+  };
+  const medicalCentersService = {
+    getMedicalCentersById: async () => ({ id: 3, name: 'Centro medico Norte' })
+  };
+  const service = new AppointmentsService(repository, null, null, null, medicalCentersService);
+  service.validateCoreUserRole = async () => {};
+  service.getCoreSpecialityForAppointment = async () => ({ id: 4, name: 'Cardiologia' });
+  service.queueNotificationForAppointment = async (appointmentId, notificationPayload, notification) => {
+    if (notification.notification_type === 'webhookOperationsRoomCreate') {
+      return { success: false, errorMessage: 'webhook queue failed' };
+    }
+
+    return { success: true, requestId: 'email-notification-123' };
+  };
+
+  const originalError = console.error;
+  const errors = [];
+  console.error = (...args) => errors.push(args);
+
+  try {
+    const result = await service.createAppointment({
+      medic: {
+        id: 1,
+        fullname: 'Mateo Sanchez',
+        email: 'medic@example.com',
+      },
+      patient: {
+        id: 2,
+        fullname: 'Tomas Martinez',
+        email: 'patient@example.com',
+      },
+      appointment: {
+        center_id: 3,
+        speciality_id: 4,
+        starts_at: '2099-01-01 10:00:00',
+        ends_at: '2099-01-01 10:30:00',
+      },
+    });
+
+    assert.deepEqual(result, { appointment_id: 123, notification_id: 'email-notification-123' });
+    assert.equal(deleteSavedNotificationCalled, false);
+    assert.equal(deleteAppointmentCalled, false);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0][0], /webhookOperationsRoomCreate/);
+  } finally {
+    console.error = originalError;
+  }
 });
 
 test('getAppointments returns repository data when successful', async () => {
@@ -394,6 +462,41 @@ test('checkIfWebhookRequired sends all matching webhooks when speciality is surg
       appointmentId: 21,
       metadata: {},
       reason: 'Turno de alta complejidad cancelado',
+    },
+  ]);
+});
+
+test('checkIfWebhookRequired sends only module 6 reservation webhook when surgery is rescheduled', async () => {
+  const service = new AppointmentsService({});
+  const metadata = {
+    previous_starts_at: '2029-09-05 16:00:00',
+    previous_ends_at: '2029-09-05 16:30:00',
+    new_starts_at: '2029-09-06 10:00:00',
+    new_ends_at: '2029-09-06 10:30:00',
+    center_id: 3,
+    medic_id: 1,
+    patient_id: 2,
+    since: '2029-09-06 10:00:00',
+    until: '2029-09-06 10:30:00'
+  };
+
+  const payload = await service.checkIfWebhookRequired(21, {
+    id: 10,
+    type: 'SURGERY',
+    is_high_complexity: 1,
+  }, 'reprogramado', metadata);
+
+  assert.deepEqual(payload, [
+    {
+      notify_by: 'webhook',
+      notification_type: 'webhookOperationsRoomCreate',
+      appointmentId: 21,
+      metadata: {
+        ...metadata,
+        starts_at: '2029-09-06 10:00:00',
+        ends_at: '2029-09-06 10:30:00',
+      },
+      reason: 'Turno quirÃºrgico reprogramado',
     },
   ]);
 });
