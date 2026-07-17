@@ -21,7 +21,7 @@ test('validate calls next and stores parsed data in validatedRequest when body i
   });
 
   assert.equal(nextCalled, true);
-  assert.deepEqual(req.validatedRequest, { id: 5 });
+  assert.deepEqual(req.validatedRequest, { body: { id: 5 } });
 });
 
 test('validate returns 400 with details when validation fails', () => {
@@ -53,7 +53,7 @@ test('validate returns 400 with details when validation fails', () => {
     error: 'Validation error',
     details: [
       {
-        field: 'id',
+        field: 'body.id',
         message: 'id must be positive'
       }
     ]
@@ -73,5 +73,5 @@ test('validate can read from params source', () => {
 
   middleware(req, res, () => {});
 
-  assert.deepEqual(req.validatedRequest, { id: 10 });
+  assert.deepEqual(req.validatedRequest, { params: { id: 10 } });
 });

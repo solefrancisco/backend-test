@@ -29,16 +29,20 @@ class AppointmentsService {
     }
 
     async createAppointment(data) {
+        this.normalizeAppointmentParticipantNames(data);
+
         if(mockConfig.enabled) {
             // if mocking is enabled, we check in our database to avoid creating appointments with non existing data
             await this.specialitiesService.getSpecialityById(data.appointment.speciality_id);
-            await this.medicalCentersService.getMedicalCentersById(data.appointment.center_id);
         } else {
             await this.validateCoreUserRole(data.patient.id, ['patient', 'pacient', 'paciente'], 'patient');
             await this.validateCoreUserRole(data.medic.id, ['medic', 'medico'], 'medic');
             const speciality = await this.getCoreSpecialityForAppointment(data.appointment.speciality_id);
             data.appointment.speciality_name = speciality.name;
         }
+        
+        const medicalCenter = await this.medicalCentersService.getMedicalCentersById(data.appointment.center_id);
+        data.appointment.medical_center_name = medicalCenter.name;
 
         const result = await this.appointmentsRepository.create(data);
         if (!result.success){
@@ -282,10 +286,21 @@ class AppointmentsService {
 
     normalizeFullname(fullname) {
         return String(fullname)
+            .replace(/(Medico|Paciente)/gi, ' $1 ')
             .replace(/\d+/g, '')
             .replace(/Medico|Paciente/gi, '')
             .replace(/\s+/g, ' ')
             .trim();
+    }
+
+    normalizeAppointmentParticipantNames(data) {
+        if (data?.patient?.fullname) {
+            data.patient.fullname = this.normalizeFullname(data.patient.fullname);
+        }
+
+        if (data?.medic?.fullname) {
+            data.medic.fullname = this.normalizeFullname(data.medic.fullname);
+        }
     }
 
     async getLocalSpecialityForAppointment(specialityId) {
@@ -660,29 +675,53 @@ class AppointmentsService {
     
     async sendChangeStatusNotification(id, action, webhookPayload = []) {
         const requestId = crypto.randomUUID();
-        const originalNotificationData = await this.getNotificationOriginalData(id, requestId);
-        const notificationsToQueue = [
-            {
-                notify_by: 'email',
-                notification_type: action,
-            }
-        ];
-
-        if (webhookPayload.length > 0) {
-            notificationsToQueue.push(...webhookPayload);
-            notificationsToQueue[0].metadata = webhookPayload[0].metadata
-        }
 
         try {
-            await this.publishCoreWebhookEvents(id, webhookPayload, requestId);
-            const queuePromises = notificationsToQueue.map(notification => this.queueNotificationForAppointment(id, originalNotificationData, notification, requestId));
-            const results = await Promise.all(queuePromises);
-            return { success: true, requestId };
+            const originalNotificationData = await this.getNotificationOriginalData(id, requestId);
+            const notificationsToQueue = [
+                {
+                    notify_by: 'email',
+                    notification_type: action,
+                }
+            ];
+
+            if (webhookPayload.length > 0) {
+                notificationsToQueue.push(...webhookPayload);
+                notificationsToQueue[0].metadata = webhookPayload[0].metadata
+            }
+
+            try {
+                await this.publishCoreWebhookEvents(id, webhookPayload, requestId);
+            } catch (error) {
+                console.error(`${requestId} - Failed to publish Core webhook events for appointment id ${id}: ${error.message}`);
+            }
+
+            const queueResults = await Promise.all(
+                notificationsToQueue.map(async notification => {
+                    try {
+                        const result = await this.queueNotificationForAppointment(id, originalNotificationData, notification, requestId);
+                        return { notification, result };
+                    } catch (error) {
+                        return { notification, error };
+                    }
+                })
+            );
+
+            for (const { notification, result, error } of queueResults) {
+                if (error) {
+                    console.error(`${requestId} - Error queueing ${notification.notification_type} notification for appointment id ${id}: ${error.message}`);
+                    continue;
+                }
+
+                if (!result.success) {
+                    console.error(`${requestId} - Failed to queue ${notification.notification_type} notification for appointment id ${id}: ${result.errorMessage || 'unknown error'}`);
+                }
+            }
         } catch (error) {
-            console.error(`Failed to queue notifications for appointment id ${id}:`, error);
-            // Atajamos cualquier error de infraestructura inesperado
-            return { success: false, requestId };
+            console.error(`${requestId} - Failed to queue notifications for appointment id ${id}: ${error.message}`);
         }
+
+        return { success: true, requestId };
     }
 
     async publishCoreWebhookEvents(appointmentId, webhookPayload, requestId) {

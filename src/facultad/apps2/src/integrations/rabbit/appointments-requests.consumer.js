@@ -37,7 +37,7 @@ class AppointmentsRequestsConsumer {
                 await this.processMessage(message);
                 channel.ack(message);
             } catch (error) {
-                console.error('Failed to process appointments request message:', error);
+                console.error(`Failed to process appointments request message: ${error.message} rawLength=${message.content?.length || 0}`);
                 channel.nack(message, false, false);
             }
         });

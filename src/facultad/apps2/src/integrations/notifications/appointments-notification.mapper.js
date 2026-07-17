@@ -1,3 +1,19 @@
+const { InternalServerError } = require('@apps2/errors/internal-server.error');
+
+function getWebhookUrl(envName, fallbackUrl) {
+    const url = process.env[envName];
+
+    if (url) {
+        return url;
+    }
+
+    if (fallbackUrl) {
+        return fallbackUrl;
+    }
+
+    throw new InternalServerError(`Missing ${envName} for webhook notification`);
+}
+
 function getFormattedTimestamp(){
     const date = new Date();
 
@@ -117,7 +133,7 @@ function generateAbsentAppointmentNotification(data, appointmentId, notification
 }
 
 function generateOperationsRoomWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
-    const url = process.env.OPERATING_ROOM_WEBHOOK_URL || 'https://healthgrid-hce-backend.onrender.com/api/v1/webhook/turnos/presentismo';
+    const url = getWebhookUrl('OPERATING_ROOM_WEBHOOK_URL', `https://modulo-6-api.hf.space/api/v1/turnos/${appointmentId}/cancelacion`);
     // const notificationOriginalData = data.data;
     
     const notificationItem = Array.isArray(data)
@@ -128,26 +144,26 @@ function generateOperationsRoomWebhookNotification(data, appointmentId, notifica
     
     const notification = getDefaultWebhookNotificationTemplate(notificationOriginalData, appointmentId, notificationTemplate, url, reason, requestId);
     
-    notification.request.body.appointment = {
-        id: appointmentId,
-        starts_at: notificationOriginalData.appointment.starts_at,
-        speciality_name: notificationOriginalData.appointment.speciality_name,
-        medical_center_name: notificationOriginalData.appointment.medical_center_name,
+    notification.request.body = {
+        motivo: reason,
+        tipo_notificacion: reason,
+        timestamp: getFormattedTimestamp(),
     }
-
+    
+    delete notification.request.reason;
     
     if (reason.includes('reprogramado')) {
-        notification.request.body.appointment.previous_starts_at = metadata.previous_starts_at;
-        notification.request.body.appointment.previous_ends_at = metadata.previous_ends_at;
-        notification.request.body.appointment.new_starts_at = metadata.new_starts_at;
-        notification.request.body.appointment.new_ends_at = metadata.new_ends_at;
+        notification.request.body.previous_starts_at = metadata.previous_starts_at;
+        notification.request.body.previous_ends_at = metadata.previous_ends_at;
+        notification.request.body.new_starts_at = metadata.new_starts_at;
+        notification.request.body.new_ends_at = metadata.new_ends_at;
     }
 
     return notification;
 }
 
 function generateHighComplexityWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
-    const url = process.env.HIGH_COMPLEXITY_WEBHOOK_URL || 'https://healthgrid-hce-backend.onrender.com/api/v1/webhook/turnos/presentismo';
+    const url = getWebhookUrl('HIGH_COMPLEXITY_WEBHOOK_URL', 'https://health-grid-backend-7l67.onrender.com/api/events/webhook');
     // const notificationOriginalData = data.data;
     
     const notificationItem = Array.isArray(data)
@@ -172,7 +188,7 @@ function generateHighComplexityWebhookNotification(data, appointmentId, notifica
 }
 
 function generateCheckInWebhookNotification(data, appointmentId, notificationTemplate, reason, metadata, requestId) {
-    const url = process.env.CHECK_IN_WEBHOOK_URL || 'https://healthgrid-hce-backend.onrender.com/api/v1/webhook/turnos/presentismo';
+    const url = getWebhookUrl('CHECK_IN_WEBHOOK_URL', 'https://healthgrid-hce-backend.onrender.com/api/v1/webhook/turnos/presentismo');
     // const notificationOriginalData = data.data;
     
     const notificationItem = Array.isArray(data)
