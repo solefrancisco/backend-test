@@ -1,6 +1,14 @@
 const { z } = require('zod');
 
 const createSpecialitySchema = z.object({
+  speciality_id: z
+    .number({
+      invalid_type_error: 'speciality_id must be a number'
+    })
+    .int('speciality_id must be an integer')
+    .positive('speciality_id must be a positive integer')
+    .optional(),
+
   name: z
     .string({
       required_error: 'name is required',

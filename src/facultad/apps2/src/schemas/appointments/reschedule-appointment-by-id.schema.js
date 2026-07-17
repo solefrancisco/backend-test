@@ -38,7 +38,7 @@ const rescheduleAppointmentByIdBodySchema = z.object({
       path: ['starts_at'],
     });
   }
-
+  /*
   // regla 2: dentro del horario laboral (9 a 18)
   const startsAtHour = startsAt.getHours();
   const endsAtHour = endsAt.getHours();
@@ -57,7 +57,7 @@ const rescheduleAppointmentByIdBodySchema = z.object({
       message: 'ends_at must be between 09:30:00 and 18:00:00',
       path: ['ends_at']
     });
-  }
+  } */
 
   // regla 3: máximo 30 minutos por turno
   const diffMs = endsAt - startsAt;

@@ -96,34 +96,34 @@ const createAppointmentSchema = z.object({
       path: ['patient', 'id']
     });
   }
+    /*
+    const now = new Date();
+    if (startsAt < now) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'appointment.starts_at cannot be in the past',
+        path: ['appointment', 'starts_at']
+      });
+    }
 
-  const now = new Date();
+    const startsAtHour = parseInt(appointment.starts_at.split(' ')[1].split(':')[0]);
+    // const endsAtHour = parseInt(appointment.ends_at.split(' ')[1].split(':')[0]);
+    if (startsAtHour < 9 || startsAtHour > 17) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'appointment.starts_at must be between 09:00:00 and 17:30:00',
+        path: ['appointment', 'starts_at']
+      });
+    }
 
-  if (startsAt < now) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'appointment.starts_at cannot be in the past',
-      path: ['appointment', 'starts_at']
-    });
-  }
-
-  const startsAtHour = parseInt(appointment.starts_at.split(' ')[1].split(':')[0]);
-  const endsAtHour = parseInt(appointment.ends_at.split(' ')[1].split(':')[0]);
-  if (startsAtHour < 9 || startsAtHour > 17) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'appointment.starts_at must be between 09:00:00 and 17:30:00',
-      path: ['appointment', 'starts_at']
-    });
-  }
-
-  if (endsAtHour < 9 || endsAtHour > 18) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'appointment.ends_at must be between 09:30:00 and 18:00:00',
-      path: ['appointment', 'ends_at']
-    });
-  }
+    if (endsAtHour < 9 || endsAtHour > 18) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'appointment.ends_at must be between 09:30:00 and 18:00:00',
+        path: ['appointment', 'ends_at']
+      });
+    }
+     */
 });
 
 module.exports = { createAppointmentSchema };

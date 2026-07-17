@@ -5,12 +5,14 @@ const { createSpecialitySchema } = require('@apps2/schemas/specialities/create-s
 
 test('createSpecialitySchema accepts valid speciality payload', () => {
   const result = createSpecialitySchema.safeParse({
+    speciality_id: 77,
     name: 'Cardiologia',
     is_high_complexity: 0,
     type: 'CONSULTATION',
   });
 
   assert.equal(result.success, true);
+  assert.equal(result.data.speciality_id, 77);
 });
 
 test('createSpecialitySchema rejects invalid type and high complexity flag', () => {

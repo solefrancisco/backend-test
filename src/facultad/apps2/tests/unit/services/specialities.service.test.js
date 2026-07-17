@@ -19,6 +19,7 @@ test('createSpeciality returns created speciality from repository', async () => 
     },
     async create(data) {
       assert.deepEqual(data, {
+        speciality_id: 77,
         name: 'Cardiologia',
         is_high_complexity: 0,
         type: 'CONSULTATION',
@@ -28,6 +29,7 @@ test('createSpeciality returns created speciality from repository', async () => 
   });
 
   const speciality = await service.createSpeciality({
+    speciality_id: 77,
     name: 'Cardiologia',
     is_high_complexity: 0,
     type: 'CONSULTATION',

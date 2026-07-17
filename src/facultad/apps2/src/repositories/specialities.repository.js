@@ -70,23 +70,30 @@ class MySqlSpecialitiesRepository {
 
   async create(data) {
     try {
+      const hasSpecialityId = data.speciality_id !== undefined;
+      const columns = [
+        ...(hasSpecialityId ? ['id'] : []),
+        'name',
+        'is_high_complexity',
+        'type'
+      ];
+      const values = [
+        ...(hasSpecialityId ? [data.speciality_id] : []),
+        data.name,
+        data.is_high_complexity,
+        data.type
+      ];
+      const placeholders = columns.map(() => '?').join(', ');
+
       const [result] = await this.pool.query(
         `
-          INSERT INTO specialities (
-            name,
-            is_high_complexity,
-            type
-          )
-          VALUES (?, ?, ?)
+          INSERT INTO specialities (${columns.join(', ')})
+          VALUES (${placeholders})
         `,
-        [
-          data.name,
-          data.is_high_complexity,
-          data.type
-        ]
+        values
       );
 
-      return await this.findById(result.insertId);
+      return await this.findById(hasSpecialityId ? data.speciality_id : result.insertId);
     } catch (error) {
       return { success: false, sqlState: error.sqlState, errorMessage: error.message };
     }
